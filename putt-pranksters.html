@@ -2463,7 +2463,16 @@ function buildScene() {
         t.strokeStyle = 'rgba(150,115,60,.18)'; t.lineWidth = 1; for (let y = 0; y < 128; y += 21) { t.beginPath(); t.moveTo(0, y); t.lineTo(128, y + 2); t.stroke(); } });
       sandT.wrapS = sandT.wrapT = THREE.RepeatWrapping; sandT.repeat.set(1 / 128, 1 / 128);
       const wood = lam(0x8f6136), woodD = lam(0x6e4a2a);
-      const dg = new THREE.ExtrudeGeometry(sh, {depth:TOP - BOT, bevelEnabled:true, bevelThickness:1.5, bevelSize:1.5, bevelSegments:2, curveSegments:10}).rotateX(Math.PI / 2);
+      let dg = new THREE.ExtrudeGeometry(sh, {depth:TOP - BOT, bevelEnabled:true, bevelThickness:1.5, bevelSize:1.5, bevelSegments:2, curveSegments:10}).rotateX(Math.PI / 2);
+      { // safety: drop any deck-top triangle that ends up inside the course (a tangled outline can confuse the triangulator)
+        const P0 = dg.attributes.position.array, N0 = dg.attributes.normal.array, U0 = dg.attributes.uv.array, P1 = [], N1 = [], U1 = [], G1 = [];
+        for (const gr of dg.groups) { const st = P1.length / 3;
+          for (let v = gr.start; v < gr.start + gr.count; v += 3) { const cx = (P0[v * 3] + P0[v * 3 + 3] + P0[v * 3 + 6]) / 3, cz = (P0[v * 3 + 2] + P0[v * 3 + 5] + P0[v * 3 + 8]) / 3;
+            if (Math.abs(N0[v * 3 + 1]) > .9 && inPoly({x:cx, y:cz}, d.poly)) continue;
+            for (let k = 0; k < 9; k++) { P1.push(P0[v * 3 + k]); N1.push(N0[v * 3 + k]); } for (let k = 0; k < 6; k++) U1.push(U0[v * 2 + k]); }
+          G1.push([st, P1.length / 3 - st, gr.materialIndex]); }
+        const ng = new THREE.BufferGeometry(); ng.setAttribute('position', new THREE.Float32BufferAttribute(P1, 3)); ng.setAttribute('normal', new THREE.Float32BufferAttribute(N1, 3)); ng.setAttribute('uv', new THREE.Float32BufferAttribute(U1, 2));
+        G1.forEach(q => ng.addGroup(q[0], q[1], q[2])); dg.dispose(); dg = ng; }
       const dm = new THREE.Mesh(dg, [new THREE.MeshLambertMaterial({map:sandT}), wood]); dm.position.y = TOP - 1.5; dm.receiveShadow = true; dm.userData.keep = 1; g.add(dm);
       const flr = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(d.poly.map(q => new THREE.Vector2(q[0], q[1]))), 4).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({color:0x3a2d22, side:THREE.DoubleSide})); flr.position.y = BOT + 1; flr.userData.keep = 1; g.add(flr);
       const legs = [], step = 120, LEG = 560; // stilts with cross braces, fading into the haze below
