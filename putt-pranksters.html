@@ -2086,10 +2086,12 @@ function buildScene() {
     let cx0 = 1e9, cx1 = -1e9, cz0 = 1e9, cz1 = -1e9; d.poly.forEach(q => { cx0 = Math.min(cx0, q[0]); cx1 = Math.max(cx1, q[0]); cz0 = Math.min(cz0, q[1]); cz1 = Math.max(cz1, q[1]); });
     const ccx = (cx0 + cx1) / 2, ccz = (cz0 + cz1) / 2, rc = rnd(Math.round(ccx * 3 + ccz));
     for (let i = 0; i < 26; i++) { const a = i / 26 * 6.283 + rc() * .2, r = 1250 + rc() * 650, sc = 260 + rc() * 260, cl2 = new THREE.Sprite(new THREE.SpriteMaterial({map:cloudT, fog:false, depthWrite:false, transparent:true, opacity:.95}));
-      cl2.scale.set(sc, sc * .5, 1); cl2.position.set(ccx + Math.cos(a) * r, 60 + rc() * 520, ccz + Math.sin(a) * r); g.add(cl2); }
+      cl2.scale.set(sc, sc * .5, 1); cl2.position.set(ccx + Math.cos(a) * r, 60 + rc() * 520, ccz + Math.sin(a) * r); cl2.userData.keep = 1; g.add(cl2); }
+    for (let i = 0; i < 16; i++) { const a = i / 16 * 6.283 + rc(), r = 380 + rc() * 700, sc = 200 + rc() * 200, cl2 = new THREE.Sprite(new THREE.SpriteMaterial({map:cloudT, fog:false, depthWrite:false, transparent:true, opacity:.8}));
+      cl2.scale.set(sc, sc * .5, 1); cl2.position.set(ccx + Math.cos(a) * r, -170 - rc() * 200, ccz + Math.sin(a) * r); cl2.userData.keep = 1; g.add(cl2); } // and drifting below the platforms
     const RB = [0xff6b6b, 0xffa94d, 0xffe066, 0x8ce99a, 0x74c0fc, 0xb197fc];
     RB.forEach((col, k) => { const ri = 560 + k * 26, m = new THREE.Mesh(new THREE.RingGeometry(ri, ri + 26, 96, 1, 0, Math.PI), new THREE.MeshBasicMaterial({color:col, transparent:true, opacity:.42, fog:false, depthWrite:false, side:THREE.DoubleSide}));
-      m.position.set(ccx + 120, -80, cz0 - 1650); g.add(m); });
+      m.position.set(ccx + 120, -80, cz0 - 1650); m.userData.keep = 1; g.add(m); });
   }
   const UNIT = new THREE.BoxGeometry(1, 1, 1), wallI = [], capI = [], postI = [], flw = [], aoI = [];
   const wall = lam(sx ? 0xf6ecd2 : 0xe8697c), railTop = lam(sx ? 0xffffff : 0xf59aa6), UP = -Math.PI / 2; // chunky pink rails with a rounded top
@@ -2100,13 +2102,13 @@ function buildScene() {
   });
   gt.wrapS = gt.wrapT = THREE.RepeatWrapping; if (isl) dyn.seaTex = gt;
   gt.repeat.set(isl ? 36 : 50, isl ? 36 : 50);
-  const ground = mk(new THREE.RingGeometry(HR * .8, 3400, 64, 1), new THREE.MeshLambertMaterial({map:gt}), d.hole[0], -8, d.hole[1], false); ground.rotation.x = UP; g.add(ground);
+  const ground = mk(new THREE.RingGeometry(HR * .8, 3400, 64, 1), new THREE.MeshLambertMaterial({map:gt}), d.hole[0], -8, d.hole[1], false); ground.rotation.x = UP; void ground;
   let qx0 = 1e9, qx1 = -1e9, qz0 = 1e9, qz1 = -1e9; d.poly.forEach(q => { qx0 = Math.min(qx0, q[0]); qx1 = Math.max(qx1, q[0]); qz0 = Math.min(qz0, q[1]); qz1 = Math.max(qz1, q[1]); });
   if (isl) { const sh2 = new THREE.Shape(), M2 = sx ? 0 : 1, ax0 = sx ? -35 : qx0 - 150, ax1 = sx ? 395 : qx1 + 150, az0 = sx ? -33 : qz0 - 210, az1 = sx ? 557 : qz1 + 90; void M2;
     sh2.moveTo(ax0, az0); sh2.lineTo(ax1, az0); sh2.lineTo(ax1, az1); sh2.lineTo(ax0, az1); sh2.closePath();
     for (const w of c.pits) { const wp = new THREE.Path(); wp.moveTo(w[0], w[1]); wp.lineTo(w[0], w[1] + w[3]); wp.lineTo(w[0] + w[2], w[1] + w[3]); wp.lineTo(w[0] + w[2], w[1]); wp.closePath(); sh2.holes.push(wp); } const hp = new THREE.Path(); hp.absarc(d.hole[0], d.hole[1], HR * .8, 0, 6.2832, true); sh2.holes.push(hp);
     for (const w of c.water) { const wp = new THREE.Path(); wp.moveTo(w[0], w[1]); wp.lineTo(w[0], w[1] + w[3]); wp.lineTo(w[0] + w[2], w[1] + w[3]); wp.lineTo(w[0] + w[2], w[1]); wp.closePath(); sh2.holes.push(wp); }
-    const sand = new THREE.Mesh(new THREE.ShapeGeometry(sh2, 24).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({color:0xf1dca7, side:THREE.DoubleSide})); sand.position.y = -.9; sand.receiveShadow = true; g.add(sand); }
+    const sand = new THREE.Mesh(new THREE.ShapeGeometry(sh2, 24).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({color:0xf1dca7, side:THREE.DoubleSide})); sand.position.y = -.9; sand.receiveShadow = true; void sand; }
   // platform with striped top
   const shp = new THREE.Shape(); d.poly.forEach((q, i) => i ? shp.lineTo(q[0], q[1]) : shp.moveTo(q[0], q[1]));
   const turf = canvasTex(sx ? 'road2' : 'tiles3', 128, 128, (t) => {
@@ -2308,7 +2310,7 @@ function buildScene() {
     const k = kim3(); k.scale.setScalar(.8); g.add(k);
     const sayT = canvasTex('kimbump', 256, 96, t => { t.fillStyle = '#fff'; t.beginPath(); t.moveTo(24, 6); t.lineTo(232, 6); t.quadraticCurveTo(250, 6, 250, 24); t.lineTo(250, 50); t.quadraticCurveTo(250, 68, 232, 68); t.lineTo(146, 68); t.lineTo(128, 92); t.lineTo(118, 68); t.lineTo(24, 68); t.quadraticCurveTo(6, 68, 6, 50); t.lineTo(6, 24); t.quadraticCurveTo(6, 6, 24, 6); t.fill(); t.fillStyle = '#152238'; t.font = '400 34px "Lilita One", sans-serif'; t.textAlign = 'center'; t.fillText('Want a bump?', 128, 50); });
     const say = sprite(sayT, 64, 24); say.position.set(0, 76, 0); say.visible = false; k.add(say); k.userData.say = say; dyn.kims.push(k);
-    dyn.kimW = {per, tot, s:0, k, x:null, z:null, base:isl ? -.9 : -8, face:0, walk:0};
+    k.userData.keep = 1; dyn.kimW = {per, tot, s:0, k, x:null, z:null, base:-1.2, face:0, walk:0};
   }
   if (sx) {
     const st = canvasTex('kimsign', 256, 72, t => { t.fillStyle = '#fff'; t.fillRect(0, 0, 256, 72); t.strokeStyle = '#ff5d8f'; t.lineWidth = 8; t.strokeRect(4, 4, 248, 64); t.fillStyle = '#152238'; t.textAlign = 'center'; t.font = '400 28px "Lilita One", sans-serif'; t.fillText("KIM'S CAR SERVICE", 128, 36); t.font = '800 15px Nunito, sans-serif'; t.fillStyle = '#5a6b85'; t.fillText('SXM AIRPORT PICKUP', 128, 58); });
@@ -2449,11 +2451,38 @@ function buildScene() {
           st.position.set(0, H * u + .35, L * u); st.rotation.x = -Math.PI / 2 - Math.atan(H / L); deck.add(st); }
       }
     }
+    { // the floating deck: sandy boards around the course on wooden stilts, sky all the way down
+      const [dx0, dx1, dz0, dz1] = sx ? [-35, 395, -33, 557] : isl ? [qx0 - 150, qx1 + 150, qz0 - 210, qz1 + 90] : [qx0 - 80, qx1 + 80, qz0 - 95, qz1 + 80];
+      dyn.deck = [dx0, dx1, dz0, dz1]; const onDeck = (x, z) => x > dx0 + 3 && x < dx1 - 3 && z > dz0 + 3 && z < dz1 - 3;
+      for (const L of [postI, flw]) for (let i = L.length - 1; i >= 0; i--) if (!onDeck(L[i][0], L[i][2])) L.splice(i, 1);
+      let gmin = 0; for (let z = qz0; z <= qz1; z += 6) for (let x = qx0; x <= qx1; x += 6) if (inPoly({x, y:z}, d.poly)) gmin = Math.min(gmin, GH(x, z));
+      const TOP = -1.2, BOT = Math.min(-24, gmin - 14), rr0 = 22, sh = new THREE.Shape();
+      sh.moveTo(dx0 + rr0, dz0); sh.lineTo(dx1 - rr0, dz0); sh.quadraticCurveTo(dx1, dz0, dx1, dz0 + rr0); sh.lineTo(dx1, dz1 - rr0); sh.quadraticCurveTo(dx1, dz1, dx1 - rr0, dz1); sh.lineTo(dx0 + rr0, dz1); sh.quadraticCurveTo(dx0, dz1, dx0, dz1 - rr0); sh.lineTo(dx0, dz0 + rr0); sh.quadraticCurveTo(dx0, dz0, dx0 + rr0, dz0);
+      const hp2 = new THREE.Path(); d.poly.forEach((q, i) => i ? hp2.lineTo(q[0], q[1]) : hp2.moveTo(q[0], q[1])); hp2.closePath(); sh.holes.push(hp2);
+      const sandT = canvasTex('deckSand', 128, 128, t => { const r9 = rnd(31); t.fillStyle = '#e4cf9f'; t.fillRect(0, 0, 128, 128); for (let i = 0; i < 2600; i++) { t.fillStyle = r9() > .5 ? 'rgba(255,255,255,.10)' : 'rgba(120,90,40,.10)'; t.fillRect(r9() * 128, r9() * 128, 1.4, 1.4); }
+        t.strokeStyle = 'rgba(150,115,60,.18)'; t.lineWidth = 1; for (let y = 0; y < 128; y += 21) { t.beginPath(); t.moveTo(0, y); t.lineTo(128, y + 2); t.stroke(); } });
+      sandT.wrapS = sandT.wrapT = THREE.RepeatWrapping; sandT.repeat.set(1 / 128, 1 / 128);
+      const wood = lam(0x8f6136), woodD = lam(0x6e4a2a);
+      const dg = new THREE.ExtrudeGeometry(sh, {depth:TOP - BOT, bevelEnabled:true, bevelThickness:1.5, bevelSize:1.5, bevelSegments:2, curveSegments:10}).rotateX(Math.PI / 2);
+      const dm = new THREE.Mesh(dg, [new THREE.MeshLambertMaterial({map:sandT}), wood]); dm.position.y = TOP - 1.5; dm.receiveShadow = true; dm.userData.keep = 1; g.add(dm);
+      const flr = new THREE.Mesh(new THREE.ShapeGeometry(new THREE.Shape(d.poly.map(q => new THREE.Vector2(q[0], q[1]))), 4).rotateX(Math.PI / 2), new THREE.MeshLambertMaterial({color:0x3a2d22, side:THREE.DoubleSide})); flr.position.y = BOT + 1; flr.userData.keep = 1; g.add(flr);
+      const legs = [], step = 120, LEG = 560; // stilts with cross braces, fading into the haze below
+      const lx = []; for (let x = dx0 + 14; x <= dx1 - 14 + .1; x += (dx1 - dx0 - 28) / Math.max(1, Math.round((dx1 - dx0 - 28) / step))) lx.push(x);
+      const lz = []; for (let z = dz0 + 14; z <= dz1 - 14 + .1; z += (dz1 - dz0 - 28) / Math.max(1, Math.round((dz1 - dz0 - 28) / step))) lz.push(z);
+      for (const x of lx) for (const z of lz) legs.push([x, BOT - LEG / 2, z, 0, 8, LEG, 8]);
+      for (let a = 0; a < lx.length - 1; a++) for (const z of [lz[0], lz[lz.length - 1]]) for (const y of [BOT - 70, BOT - 220]) { const L2 = Math.hypot(lx[a + 1] - lx[a], 120); legs.push([(lx[a] + lx[a + 1]) / 2, y, z, 0, L2, 4, 4, Math.atan2(120, lx[a + 1] - lx[a])], [(lx[a] + lx[a + 1]) / 2, y, z, 0, L2, 4, 4, -Math.atan2(120, lx[a + 1] - lx[a])]); }
+      for (let a = 0; a < lz.length - 1; a++) for (const x of [lx[0], lx[lx.length - 1]]) for (const y of [BOT - 70, BOT - 220]) { const L2 = Math.hypot(lz[a + 1] - lz[a], 120); legs.push([x, y, (lz[a] + lz[a + 1]) / 2, Math.PI / 2, L2, 4, 4, Math.atan2(120, lz[a + 1] - lz[a])], [x, y, (lz[a] + lz[a + 1]) / 2, Math.PI / 2, L2, 4, 4, -Math.atan2(120, lz[a + 1] - lz[a])]); }
+      for (const x of lx) for (const z of [dz0 + 4, dz1 - 4]) legs.push([x, BOT - 6, z, 0, 10, 12, 10]); // beam ends under the rim
+      boxes(legs, woodD, false);
+    }
     boxes(aoI, new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:.2, depthWrite:false}), false);
     boxes(wallI, wall, true); boxes(capI, railTop, true, new THREE.CylinderGeometry(.5, .5, 1, 14).rotateZ(Math.PI / 2)); boxes(postI, lam(0x2a2f38), false);
     if (flw.length) { const im = new THREE.InstancedMesh(new THREE.IcosahedronGeometry(1, 0), lam(0xffffff), flw.length); Q.identity(); flw.forEach((a, i) => { P.set(a[0], a[1], a[2]); S.set(a[3], a[3], a[3]); M.compose(P, Q, S); im.setMatrixAt(i, M); im.setColorAt(i, C.setHex(a[4])); }); im.frustumCulled = false; g.add(im); }
   }
   for (const k in balls) delete balls[k];
+  if (dyn.deck) { const [dx0, dx1, dz0, dz1] = dyn.deck, bx = new THREE.Box3(), cv3 = new THREE.Vector3(); g.updateMatrixWorld(true); // anything that would hang off the deck into the sky goes
+    for (const o of g.children.slice()) { if (o.userData.keep || o.isInstancedMesh || o === dyn.flag) continue; bx.setFromObject(o); if (bx.isEmpty()) continue; bx.getCenter(cv3);
+      if (cv3.x < dx0 - 4 || cv3.x > dx1 + 4 || cv3.z < dz0 - 4 || cv3.z > dz1 + 4 || bx.min.y < -60 || bx.max.y > 260) g.remove(o); } }
   scene.add(g);
 }
 let rollAxis = null;
@@ -2488,7 +2517,7 @@ function fitCam() { // smallest camera distance that keeps the whole hole betwee
   const test = dist => {
     let mn = 0, mx = 0, wx = 0;
     for (let it = 0; it < 12; it++) {
-      cam.position.set(cx, dist * .8, zc + dist * .6); cam.lookAt(cx, 0, zc); cam.updateMatrixWorld();
+      cam.position.set(cx, dist * .7, zc + dist * .714); cam.lookAt(cx, 0, zc); cam.updateMatrixWorld();
       mn = 9; mx = -9; wx = 0; for (const q of pts) { v.copy(q).project(cam); mn = Math.min(mn, v.y); mx = Math.max(mx, v.y); wx = Math.max(wx, Math.abs(v.x)); }
       zc += ((TOP + BOT) / 2 - (mn + mx) / 2) * dist * .3;
     }
@@ -2649,7 +2678,7 @@ function draw() {
   if (!camT || fe > .98) camT = {x:tx, z:tz}; camT.x += (tx - camT.x) * .06; camT.z += (tz - camT.z) * .06;
   { const ca = Math.atan2(camF.x, -camF.z); let da = Math.atan2(fX, -fZ) - ca; while (da > Math.PI) da -= 6.2832; while (da < -Math.PI) da += 6.2832; const na = ca + da * .07; camF = {x:Math.sin(na), z:-Math.cos(na)}; }
   const jit = (shake > 0 || (p && (p.fx.quake > 0 || p.fx.flour > 0) && phase === 'play')) ? 7 : 0;
-  cam.position.set(camT.x - camF.x * dist * .6 + (Math.random() - .5) * jit, dist * .8 + (Math.random() - .5) * jit, camT.z - camF.z * dist * .6);
+  cam.position.set(camT.x - camF.x * dist * .714 + (Math.random() - .5) * jit, dist * .7 + (Math.random() - .5) * jit, camT.z - camF.z * dist * .714);
   cam.lookAt(camT.x + (Math.random() - .5) * jit, 0, camT.z);
   R.render(scene, cam);
   // screen-space overlay: confetti, ink, flour
