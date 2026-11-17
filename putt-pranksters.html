@@ -131,6 +131,43 @@ textarea{font:inherit;color:inherit;background:#0f1a2c;border:2px solid var(--li
 #bigLbl{background:#fff;color:#7a1238;font-family:var(--display);font-style:italic;font-size:20px;padding:5px 18px 5px 22px;
   border-radius:12px 0 0 12px;margin-top:-4px;display:inline-block}
 
+
+/* ---- party-show HUD: counters, side scoreboard, item cards, reactions ---- */
+#hSub{gap:16px;margin-top:8px;align-items:center}
+#hSub .cnt{display:inline-flex;align-items:center;gap:6px;font-size:22px;font-style:italic}
+.ic{width:30px;height:30px;border-radius:50%;background:#fff;display:inline-grid;place-items:center;box-shadow:0 2px 0 rgba(0,0,0,.3);flex:0 0 auto;font-size:17px;font-style:normal}
+.ic.ball::before{content:"";width:22px;height:22px;border-radius:50%;background:radial-gradient(circle at 34% 30%,#fff 0 9%,transparent 10%),radial-gradient(circle at 60% 38%,#fff 0 7%,transparent 8%),radial-gradient(circle at 42% 58%,#fff 0 7%,transparent 8%),radial-gradient(circle at 35% 30%,#ff5a5a,#c4121b 75%)}
+#strip{top:96px;gap:7px}
+.pcard{gap:9px;background:rgba(18,22,38,.58);border-radius:12px;padding:5px 14px 5px 5px;min-width:118px;backdrop-filter:blur(2px);box-shadow:0 2px 0 rgba(0,0,0,.2)}
+.pcard .port{width:40px;height:40px;border-radius:9px;display:grid;place-items:center;font-size:25px;line-height:1;border:2px solid rgba(255,255,255,.9);flex:0 0 auto;box-shadow:inset 0 -6px 10px rgba(0,0,0,.18)}
+.pcard .nm{font-size:11px;max-width:96px}
+.pcard .sc{font-size:21px}
+.pcard.turn{padding:8px 18px 8px 8px;min-width:168px;border-radius:14px;box-shadow:0 4px 0 rgba(0,0,0,.28),0 0 0 2px rgba(255,255,255,.25) inset}
+.pcard.turn .port{width:56px;height:56px;font-size:36px;border-width:3px}
+.pcard.turn .nm{font-size:14px}
+.pcard.turn .sc{font-size:32px}
+.pcard .crown{margin-left:4px;font-size:12px}
+#game #emotes{left:auto;right:8px;bottom:auto;top:96px;width:136px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:28px 9px 10px;border-radius:16px;
+  background:linear-gradient(160deg,rgba(132,72,220,.92),rgba(78,36,160,.92));box-shadow:0 6px 18px rgba(0,0,0,.3);pointer-events:auto}
+#game #emotes::before{content:"Reactions";position:absolute;top:7px;left:0;right:0;text-align:center;font-family:var(--display);font-size:14px;color:#fff;letter-spacing:.4px}
+#game #emotes button{width:100%;height:54px;padding:0;font-size:31px;border-radius:13px;background:#fff;border:0;box-shadow:0 3px 0 rgba(40,10,90,.45);transform:rotate(-3deg)}
+#game #emotes button:nth-child(even){transform:rotate(3deg)}
+#game #emotes button:active{transform:scale(.92)}
+#itemCard{position:absolute;left:5%;right:5%;top:22%;z-index:8;background:#f6f3ec;border-radius:22px;padding:12px;display:flex;flex-direction:column;gap:10px;
+  box-shadow:0 14px 40px rgba(0,0,0,.45);animation:cardIn .28s cubic-bezier(.2,1.4,.4,1);pointer-events:auto}
+#itemCard.hidden{display:none}
+#itemCard .top{display:flex;gap:12px;align-items:stretch}
+#itemCard .pic{width:42%;min-height:132px;border-radius:14px;display:grid;place-items:center;font-size:72px;line-height:1;background:linear-gradient(160deg,#5fb4ff,#2b5fd9);box-shadow:inset 0 -14px 26px rgba(0,0,0,.18)}
+#itemCard.prank .pic{background:linear-gradient(160deg,#ff7aa8,#b5247a)}
+#itemCard .txt{flex:1;display:flex;flex-direction:column;justify-content:center;color:#1d2433;min-width:0}
+#itemCard .ttl{font-family:var(--display);font-style:italic;text-transform:uppercase;font-size:28px;line-height:.95;letter-spacing:.3px}
+#itemCard .dsc{font-size:15px;line-height:1.3;margin-top:8px;color:#34405a}
+#itemCard .kim{display:flex;align-items:center;gap:8px;font-size:12px;color:#5a6476;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+#itemCard .kim svg{width:30px;height:30px;flex:0 0 auto}
+#itemCard .bar{height:6px;border-radius:3px;background:#dcd6ca;overflow:hidden}
+#itemCard .bar i{display:block;height:100%;width:100%;background:#9aa3b5;transform-origin:left;animation:barGo linear forwards}
+@keyframes cardIn{from{transform:scale(.6) translateY(30px);opacity:0}to{transform:none;opacity:1}}
+@keyframes barGo{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 #stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
   background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(8,14,26,.42) 100%)}
 #toasts,#banner{z-index:2}
@@ -315,6 +352,9 @@ tr.me td{color:var(--sun)}
       <canvas id="gl"></canvas>
       <canvas id="cv"></canvas>
       <div id="card" class="hidden"><div id="cardHole">Hole 1</div><div id="cardName">Warm-Up</div><div id="cardPar">Par 2</div></div>
+      <div id="itemCard" class="hidden" role="dialog" aria-live="polite"><div class="top"><div class="pic" id="icPic"></div><div class="txt"><div class="ttl" id="icTtl"></div><div class="dsc" id="icDsc"></div></div></div>
+        <div class="kim"><svg viewBox="0 0 40 40" aria-hidden="true"><circle cx="20" cy="21" r="17" fill="#7c4f33"/><path d="M5 17 Q20 0 35 17 Q30 9 20 9 Q10 9 5 17Z" fill="#2a1a12"/><circle cx="14" cy="19" r="5" fill="#fff"/><circle cx="26" cy="19" r="5" fill="#fff"/><circle cx="15" cy="20" r="2.3" fill="#111"/><circle cx="27" cy="20" r="2.3" fill="#111"/><path d="M11 27 Q20 35 29 27 Z" fill="#fff"/></svg><span id="icWho">Kim explains</span></div>
+        <div class="bar"><i id="icBar"></i></div></div>
       <div id="kimPop" class="hidden" aria-live="polite">
         <div id="kimBubble"><div id="kimTo">Kim says</div><div id="kimLine">Dude, wtf</div><div id="kimSub"></div>
           <div id="kimBtns" class="row hidden"><button id="kimSkip" class="fit">Skip</button><button id="kimNext" class="primary">Next</button></div></div>
@@ -801,12 +841,12 @@ HOLES.push(
      boost:[[158,210,44,40,-1,0],[90,165,40,26,0,-1]], bumpers:[[110,230,6]], boxes:[[180,330],[150,232]]},
     {name:'In and Out', par:3, theme:'sky', poly:[[155,495],[205,495],[205,250],[320,250],[320,138.6]].concat(arc(295, 110, 38, k2, k2 - 282.2, 16).slice(1, -1), [[270,138.6],[270,190],[40,190],[40,250],[155,250]]),
      tee:[180,470], hole:[295,108], path:[[180,220],[295,220],[295,150]], relief:[{t:'hill', x:295, y:108, r:32, h:-2}],
-     doors:[[64,220,295,170]], bumpers:[[240,212,8],[180,206,6]], boost:[[163,300,34,30,0,-1]], boxes:[[110,220],[180,380]]},
+     doors:[[64,220,295,172,0,-1]], bumpers:[[240,212,8],[180,206,6]], boost:[[163,300,34,30,0,-1]], boxes:[[110,220],[180,380]]},
     {name:'Spotlight', par:3, theme:'sky', path:[[180,300]], poly:[[90,140],[270,140],[290,160],[290,460],[270,480],[90,480],[70,460],[70,160]], tee:[180,455], hole:[180,172],
      owl:[180,14], relief:[{t:'hill', x:180, y:172, r:36, h:-2}], bumpers:[[130,340,8],[230,340,8],[180,268,8],[110,230,6],[250,230,6]], boxes:[[100,300],[260,300],[180,380]]},
     {name:'Hopscotch', par:3, theme:'sky', path:[[180,300]], poly:[[150,70],[210,70],[210,495],[150,495]], tee:[180,470], hole:[180,98],
      relief:[{t:'kick', x:180, y:415, dx:0, dy:-1, len:24, w:56, rise:8}, {t:'kick', x:180, y:282, dx:0, dy:-1, len:24, w:56, rise:8}, {t:'hill', x:180, y:98, r:26, h:-1.6}],
-     pits:[[150,362,60,22],[150,230,60,20]], boxes:[[180,315],[180,175]]},
+     pits:[[150,362,60,22],[150,230,60,20]], bumpers:[[180,142,7,1]], boxes:[[180,315],[180,175]]},
     {name:'Tug of War', par:3, theme:'sky', poly:[[60,80],[300,80],[300,495],[60,495]], tee:[180,470], hole:[180,118], path:[[180,430],[100,300],[180,170]],
      blocks:[[172,200,16,200]], movers:[{y:330,w:40,h:12,x0:64,x1:128,sp:1.4,ph:0},{y:260,w:40,h:12,x0:192,x1:256,sp:1.2,ph:1}],
      boost:[[78,380,40,30,0,-1]], rough:[[200,300,90,60]], relief:[{t:'hill', x:180, y:118, r:34, h:-2}], boxes:[[100,230],[260,380]]},
@@ -884,7 +924,7 @@ function build(i) {
       return {x:d.owl[0], y:d.owl[1], box:{cx:(x0 + x1) / 2, hw:Math.max(10, (x1 - x0) / 2 - 22), cy:(ya + yb) / 2, hh:(yb - ya) / 2}}; })() : null,
     mole:d.mole ? {x:0, y:0, st:0, t:2, i:0, dir:1, burrows:(d.burrows || []).map(q => ({x:q[0], y:q[1]}))} : null,
     glass:(() => { const gl = d.glass || [], rg = rnd(glassSeed + i * 77 + 1), safe = rg() > .5 ? 0 : 1, br = Math.floor(rg() * (gl.length / 2)); // one column is safe, the other hides a pane that shatters
-      return gl.map((r, k) => ({r, st:0, in:false, kind:k % 2 === safe ? (rg() > .5 ? 'hold' : 'crack') : (Math.floor(k / 2) === br ? 'break' : rg() > .5 ? 'hold' : 'crack')})); })(), damp:d.damp || [], doors:(d.doors || []).map(q => ({ax:q[0], ay:q[1], bx:q[2], by:q[3], cd:0})), movers:d.movers || [], bumpers:(d.bumpers || []).map(b => ({x:b[0],y:b[1],r:b[2],hit:0,pin:!!b[3]})),
+      return gl.map((r, k) => ({r, st:0, in:false, kind:k % 2 === safe ? (rg() > .5 ? 'hold' : 'crack') : (Math.floor(k / 2) === br ? 'break' : rg() > .5 ? 'hold' : 'crack')})); })(), damp:d.damp || [], doors:(d.doors || []).map(q => ({ax:q[0], ay:q[1], bx:q[2], by:q[3], dx:q[4], dy:q[5], cd:0})), movers:d.movers || [], bumpers:(d.bumpers || []).map(b => ({x:b[0],y:b[1],r:b[2],hit:0,pin:!!b[3]})),
     boxes:(d.boxes || []).map(b => ({x:b[0],y:b[1],cd:0})),
     bags:(d.bags || []).map(b => ({x:b[0],y:b[1],cd:0}))};
 }
@@ -1106,7 +1146,8 @@ function stepBall(p, dt, sim) {
     }
     for (const dr of c.doors) if (dr.cd <= 0 && p.air < 2 && Math.hypot(p.x - dr.ax, p.y - dr.ay) < 9) {
       rings.push({x:dr.ax, y:dr.ay, t:.5, c:0x4de3ff, max:30}); rings.push({x:dr.bx, y:dr.by, t:.6, c:0xffb060, max:36});
-      p.x = dr.bx; p.y = dr.by; p.px = p.x; p.py = p.y; dr.cd = .8; trail.length = 0; beep(900, .12, 'sine', .05); buzz(15); break;
+      p.x = dr.bx; p.y = dr.by; p.px = p.x; p.py = p.y; dr.cd = .8;
+      if (dr.dx != null) { const sp = Math.hypot(p.vx, p.vy) * .8; p.vx = p.ux = dr.dx * sp; p.vy = p.uy = dr.dy * sp; } // some portals point the ball a set way when it comes out trail.length = 0; beep(900, .12, 'sine', .05); buzz(15); break;
     }
     if (!inPoly(p, c.d.poly) || (c.isles.length && c.isles.some(P2 => inPoly(p, P2)))) { if (p.air > 0) p.flew = true; else { p.flew = true; return 'oob'; } } // over the rail or into a planter // a ball that clears the rail keeps flying and lands outside
     for (const b of c.boxes) if (b.cd <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < 9.5 + BR) { // anywhere the ball touches the glowing ring counts
@@ -1343,10 +1384,21 @@ function moleTick(dt) { // the mole works along its row of burrows in order, the
 }
 function itemIntro(p, k) { // Kim explains an item the first time a player picks one up; after that, just a short note
   p.seenIt = p.seenIt || {}; const it = ITEMS[k];
-  if (!p.seenIt[k]) { p.seenIt[k] = 1; kimSay(p, it.e + ' ' + it.n, {sub:'Tap it at the bottom: ' + it.d + '.', then:'C U N T', ms:4600}); }
+  if (!p.seenIt[k]) { p.seenIt[k] = 1; if (p.moving && !p.done) p.cardQ = k; else itemCard(p, k); }
   else toast('Got ' + it.e + ' ' + it.n);
 }
-function kimFlush(p) { if (p.kimQ) { const q = p.kimQ; p.kimQ = null; kimSay(p, q[0], Object.assign({}, q[1], {now:1})); } }
+let cardTimer = 0;
+function itemCard(p, k) { // the first time someone grabs an item: a big card with a picture and one line, read out by Kim
+  const it = ITEMS[k], cd = $('itemCard'), ms = 4600; if (!it || !cur) return;
+  $('icPic').textContent = it.e; $('icTtl').textContent = it.n; $('icDsc').textContent = it.d.charAt(0).toUpperCase() + it.d.slice(1) + '. Tap it at the bottom to use it.';
+  $('icWho').textContent = mode === 'local' && players.length > 1 ? 'Kim explains to ' + p.name : 'Kim explains';
+  cd.classList.toggle('prank', !!it.prank); cd.classList.add('hidden'); void cd.offsetWidth; cd.classList.remove('hidden');
+  const bar = $('icBar'); bar.style.animation = 'none'; void bar.offsetWidth; bar.style.animation = ''; bar.style.animationDuration = ms + 'ms';
+  beep(520, .1, 'triangle', .05); buzz(20);
+  clearTimeout(cardTimer); const close = () => { clearTimeout(cardTimer); if (cd.classList.contains('hidden')) return; cd.classList.add('hidden'); kimSay(p, 'C U N T', {mad:1, ms:1700, now:1}); };
+  cd.onclick = close; cardTimer = setTimeout(close, ms);
+}
+function kimFlush(p) { if (p.cardQ) { const k = p.cardQ; p.cardQ = null; itemCard(p, k); } if (p.kimQ) { const q = p.kimQ; p.kimQ = null; kimSay(p, q[0], Object.assign({}, q[1], {now:1})); } }
 function onRest(p) {
   kimFlush(p);
   if (p.boomArmed) { p.boomArmed = false; boom(p); }
@@ -2735,8 +2787,8 @@ function hud() {
   if (!cur || phase === 'home' || phase === 'lobby') return;
   const p = ap(); if (!p) return;
   $('hTitle').textContent = cur.d.name;
-  $('hHole').textContent = '🚩 ' + (holeIdx + 1) + '/' + N;
-  $('hStroke').textContent = '⚪ ' + p.strokes + '/' + maxS();
+  const cnt = (id, ic, txt) => { const e2 = $(id); e2.className = 'cnt'; e2.textContent = ''; const b = el('span', 'ic' + (ic ? '' : ' ball'), ic || ''); e2.appendChild(b); e2.appendChild(document.createTextNode(txt)); };
+  cnt('hHole', '🚩', (holeIdx + 1) + '/' + N); cnt('hStroke', '', p.strokes + '/' + maxS());
   const t = $('hTime'); t.classList.toggle('hidden', mode !== 'online');
   $('chatBtn').classList.toggle('hidden', mode !== 'online');
   const s = Math.max(0, Math.ceil(timeLeft)); t.textContent = '⏱ ' + s; t.classList.toggle('low', s <= 15);
@@ -2757,7 +2809,10 @@ function hud() {
   if (p.fx.laser > 0) f.push('🎯 ×' + p.fx.laser); if (p.fx.shield > 0) f.push('🛡️ ready');
   $('fx').textContent = f.join('   ');
   const strip = $('strip'); strip.textContent = '';
-  const add = (name, c, txt, on, av) => { const ch = el('div', 'pcard' + (on ? ' turn' : '')); if (on) ch.style.background = COLORS[c % 8]; ch.appendChild(dot(c, av)); const w = el('div'); w.appendChild(el('div', 'nm', name)); w.appendChild(el('div', 'sc', txt)); ch.appendChild(w); strip.appendChild(ch); };
+  const lead = (() => { let best = -1, n = 0; if (mode === 'local') players.forEach(q => { const t2 = tot(q.scores) + q.hb; if (t2 > best) { best = t2; n = 1; } else if (t2 === best) n++; }); return n === 1 && best > 0 ? best : -1; })();
+  const add = (name, c, txt, on, av) => { const ch = el('div', 'pcard' + (on ? ' turn' : '')); const col = COLORS[c % 8]; if (on) ch.style.background = 'linear-gradient(135deg,' + col + ',' + col + 'cc)';
+    const pt = el('div', 'port', CHARS[(av | 0) % CHARS.length] || CHARS[0]); pt.style.background = 'linear-gradient(160deg,#ffffff55,' + col + ')'; ch.appendChild(pt);
+    const w = el('div'); const nm = el('div', 'nm', name); if (lead >= 0 && parseInt(String(txt).replace(/\D/g, ''), 10) === lead) nm.appendChild(el('span', 'crown', '👑')); w.appendChild(nm); w.appendChild(el('div', 'sc', txt)); ch.appendChild(w); strip.appendChild(ch); };
   if (mode === 'local') players.forEach((q, i) => add(q.name, q.c, (q.done ? '✓ ' : '') + (tot(q.scores) + q.hb), i === turn && !q.done, q.av));
   else party.forEach(q => {
     const me = q.isMe && q.sameTab, done = me ? p.done : (q.presence.dh === holeIdx && q.presence.ds === gSeq);
