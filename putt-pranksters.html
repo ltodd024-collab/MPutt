@@ -595,7 +595,7 @@ const BIG = [ // long holes built from classic mini putt ideas: windmill, bumper
    blocks:[[40,620,190,14],[150,540,190,14]], spin:[[190,455,120,1.6]], movers:[{y:250,w:80,h:14,x0:48,x1:252,sp:1.3,ph:.5}],
    bumpers:[[110,160,12],[270,160,12]], boxes:[[190,690],[290,585],[90,500],[190,290]]}
 ];
-const MAPS = ['Garden Club', 'Island Tour', 'Mini Putt Paradise', 'The Summit Links', 'The Coastal Links', 'The Mountain Fortress'];
+const MAPS = ['Garden Club', 'Island Tour', 'Mini Putt Paradise', 'The Summit Links', 'The Coastal Links', 'The Mountain Fortress', 'Sky Park'];
 { const all = HOLES.concat(BIG), keep = n => all.find(h => h.name === n); // two maps of six holes
   HOLES.splice(0, HOLES.length, keep('Warm-Up'), keep('The Dogleg'), keep('The Long Mile'), keep('Plinko Falls'), keep('Volcano'), keep("Owl's Watch"),
     keep('The Snake'), keep('Island Green'), keep('Tunnel Vision'), keep('Canyon Jump'), keep('Thin Ice'), keep("Kim's Car Service")); }
@@ -790,9 +790,34 @@ HOLES.push(
   curvy('Moat Bridge', 4, 'mtn', [[100,600],[100,500],[150,430],[240,410,30],[290,350],[260,270],[180,250,30],[110,220],[100,140],[160,90,82]], {bumpers:[[288,352,7]]}),
   curvy('The Fortress', 5, 'mtn', [[60,640],[60,500],[70,360],[110,240],[190,170],[280,190],[320,280],[310,390],[250,460],[175,445],[155,365],[180,300,60],[225,330,62]], {bumpers:[[62,430,8],[240,176,8],[316,336,8]]})
 );
+
+{ // Sky Park: short, tight holes in the style of the party mini golf games, on floating decks
+  const arc = (cx, cy, r, a0, a1, n) => { const o = []; for (let i = 0; i <= n; i++) { const a = (a0 + (a1 - a0) * i / n) * Math.PI / 180; o.push([Math.round((cx + Math.cos(a) * r) * 10) / 10, Math.round((cy + Math.sin(a) * r) * 10) / 10]); } return o; };
+  const ang = (cx, cy, x, y) => Math.atan2(y - cy, x - cx) * 180 / Math.PI;
+  const k1 = ang(110, 100, 135, 141), k2 = ang(295, 110, 320, 138.6);
+  HOLES.push(
+    {name:'Follow Me', par:3, theme:'sky', poly:[[155,495],[205,495],[205,205],[135,205]].concat(arc(110, 100, 48, k1, k1 - 297.2, 18).slice(1, -1), [[85,141],[85,255],[155,255]]),
+     tee:[180,470], hole:[110,98], path:[[180,230],[110,230],[110,150]], relief:[{t:'hill', x:110, y:98, r:40, h:-2.2}],
+     boost:[[158,210,44,40,-1,0],[90,165,40,26,0,-1]], bumpers:[[110,230,6]], boxes:[[180,330],[150,232]]},
+    {name:'In and Out', par:3, theme:'sky', poly:[[155,495],[205,495],[205,250],[320,250],[320,138.6]].concat(arc(295, 110, 38, k2, k2 - 282.2, 16).slice(1, -1), [[270,138.6],[270,190],[40,190],[40,250],[155,250]]),
+     tee:[180,470], hole:[295,108], path:[[180,220],[295,220],[295,150]], relief:[{t:'hill', x:295, y:108, r:32, h:-2}],
+     doors:[[64,220,295,170]], bumpers:[[240,212,8],[180,206,6]], boost:[[163,300,34,30,0,-1]], boxes:[[110,220],[180,380]]},
+    {name:'Spotlight', par:3, theme:'sky', path:[[180,300]], poly:[[90,140],[270,140],[290,160],[290,460],[270,480],[90,480],[70,460],[70,160]], tee:[180,455], hole:[180,172],
+     owl:[180,14], relief:[{t:'hill', x:180, y:172, r:36, h:-2}], bumpers:[[130,340,8],[230,340,8],[180,268,8],[110,230,6],[250,230,6]], boxes:[[100,300],[260,300],[180,380]]},
+    {name:'Hopscotch', par:3, theme:'sky', path:[[180,300]], poly:[[150,70],[210,70],[210,495],[150,495]], tee:[180,470], hole:[180,98],
+     relief:[{t:'kick', x:180, y:415, dx:0, dy:-1, len:24, w:56, rise:8}, {t:'kick', x:180, y:282, dx:0, dy:-1, len:24, w:56, rise:8}, {t:'hill', x:180, y:98, r:26, h:-1.6}],
+     pits:[[150,362,60,22],[150,230,60,20]], boxes:[[180,315],[180,175]]},
+    {name:'Tug of War', par:3, theme:'sky', poly:[[60,80],[300,80],[300,495],[60,495]], tee:[180,470], hole:[180,118], path:[[180,430],[100,300],[180,170]],
+     blocks:[[172,200,16,200]], movers:[{y:330,w:40,h:12,x0:64,x1:128,sp:1.4,ph:0},{y:260,w:40,h:12,x0:192,x1:256,sp:1.2,ph:1}],
+     boost:[[78,380,40,30,0,-1]], rough:[[200,300,90,60]], relief:[{t:'hill', x:180, y:118, r:34, h:-2}], boxes:[[100,230],[260,380]]},
+    {name:'Sky Steps', par:4, theme:'sky', path:[[180,300]], poly:[[110,50],[250,50],[250,495],[110,495]], tee:[180,470], hole:[180,92],
+     relief:[{t:'tier', y0:405, y1:345, rise:14}, {t:'tier', y0:240, y1:180, rise:14}, {t:'hill', x:180, y:92, r:30, h:-2}],
+     spin:[[180,292,80,1.4]], bumpers:[[130,140,7],[230,140,7]], boxes:[[140,440],[220,300]]}
+  );
+}
 const ALL = HOLES.slice(); let course = 0;
 function setCourse(c) { course = c >= 0 && c < MAPS.length ? c | 0 : 0; HOLES.splice(0, HOLES.length, ...ALL.slice(course * 6, course * 6 + 6)); try { localStorage.setItem('pp_map', String(course)); } catch (e) {} }
-{ let c0 = 0; try { c0 = +localStorage.getItem('pp_map') || 0; } catch (e) {} setCourse(c0); }
+{ let c0 = 6; try { const v = localStorage.getItem('pp_map'); if (v != null) c0 = +v || 0; } catch (e) {} setCourse(c0); }
 const N = 6;
 const maxS = () => (cur ? cur.d.par : 2) + 3;                                                    // shots allowed: par plus three
 const pts = s => Math.max(0, Math.min(500, 600 - 100 * (s - ((cur ? cur.d.par : 2) - 2))));      // 500 for two under par or better, 100 less per shot after
