@@ -1260,7 +1260,7 @@ function startHole(i) {
   for (const p of players) {
     p.imp = null; p.warp = null; p.drown = null; p.cup = null; p.ux = p.uy = 0; p.air = 0; p.vz = 0; p.gr = undefined; p.kimQ = null; p.hb = 0; if (i === 0) p.st = {sab:0, col:0, ace:0, bmp:0};
     p.x = cur.tee[0]; p.y = cur.tee[1]; p.vx = p.vy = p.ux = p.uy = 0; p.moving = false; p.shot = false; p.strokes = 0; p.done = false;
-    p.prev = null; p.last = {x:p.x, y:p.y}; p.aMagnet = p.aGhost = false; p.pending = [];
+    p.prev = null; p.last = {x:p.x, y:p.y}; p.safe = null; p.aMagnet = p.aGhost = false; p.pending = [];
     const sh = p.fx.shield; p.fx = {}; if (sh) p.fx.shield = sh;
   }
   $('sheet').classList.add('hidden'); closePicker(); show('game');
@@ -1335,6 +1335,31 @@ function onRest(p) {
   hud();
 }
 function queueNext() { lock = true; setTimeout(() => { lock = false; if (phase === 'play') nextTurn(); }, players.length > 1 ? 1300 : 300); }
+function dropOK(c, x, y) { // a fair place to put a ball back down: on the turf, clear of hazards, walls and moving parts
+  const q = {x, y}, m = BR + 7, nr = (r, k) => x > r[0] - k && x < r[0] + r[2] + k && y > r[1] - k && y < r[1] + r[3] + k;
+  if (!inPoly(q, c.d.poly) || c.isles.some(P2 => inPoly(q, P2))) return false;
+  if (c.water.some(w => nr(w, m)) || c.pits.some(w => nr(w, m)) || c.blocks.some(w => nr(w, BR + 3)) || c.boost.some(w => nr(w, 2)) || (c.d.damp || []).some(w => nr(w, 2))) return false;
+  const sd = s2 => { const dx = s2[2] - s2[0], dy = s2[3] - s2[1]; let t = ((x - s2[0]) * dx + (y - s2[1]) * dy) / (dx * dx + dy * dy || 1); t = t < 0 ? 0 : t > 1 ? 1 : t; return Math.hypot(x - s2[0] - dx * t, y - s2[1] - dy * t); };
+  if (c.segs.some(s2 => sd(s2) < BR + 4) || c.wsegs.some(s2 => sd(s2) < BR + 5)) return false;
+  if (c.bumpers.some(b => Math.hypot(b.x - x, b.y - y) < b.r + BR + 4) || c.spin.some(s2 => Math.hypot(s2.x - x, s2.y - y) < s2.len / 2 + BR + 4)) return false;
+  if (c.movers.some(mv => { const r = moverRect(mv); return x > Math.min(mv.x0, mv.x1) - BR - 4 && x < Math.max(mv.x0, mv.x1) + r[2] + BR + 4 && y > r[1] - BR - 4 && y < r[1] + r[3] + BR + 4; })) return false;
+  if ((c.d.relief || []).some(f => f.t === 'kick' && Math.hypot(x - f.x - f.dx * f.len / 2, y - f.y - f.dy * f.len / 2) < f.len / 2 + 6)) return false;
+  return Math.hypot(x - c.hole[0], y - c.hole[1]) > HR + 10;
+}
+function routeProg(c, x, y) { // how far along the tee-to-cup route a point is
+  const R2 = routeOf(c); let best = 0, bd = 1e9, acc = 0;
+  for (let i = 0; i < R2.length - 1; i++) { const a = R2[i], b = R2[i + 1], dx = b[0] - a[0], dy = b[1] - a[1], L = Math.hypot(dx, dy) || 1; let t = ((x - a[0]) * dx + (y - a[1]) * dy) / (L * L); t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const d = Math.hypot(x - a[0] - dx * t, y - a[1] - dy * t); if (d < bd) { bd = d; best = acc + L * t; } acc += L; }
+  return best;
+}
+function dropSpot(p) { // where a ball goes back into play: as close as possible to where it left the course, never further along the route
+  const c = cur, s0 = p.safe || p.last || {x:c.tee[0], y:c.tee[1]}, lim = routeProg(c, s0.x, s0.y) + 3;
+  for (let r = 0; r <= 60; r += 4) for (let k = 0; k < (r ? 24 : 1); k++) { const a = k / 24 * 6.2832, x = s0.x + Math.cos(a) * r, y = s0.y + Math.sin(a) * r;
+    if (dropOK(c, x, y) && routeProg(c, x, y) <= lim) return {x, y}; }
+  const l = p.last || {x:c.tee[0], y:c.tee[1]}; return dropOK(c, l.x, l.y) ? {x:l.x, y:l.y} : {x:c.tee[0], y:c.tee[1]};
+}
+function dropBall(p) { const d = dropSpot(p); p.x = d.x; p.y = d.y; p.vx = p.vy = p.ux = p.uy = 0; p.air = 0; p.vz = 0; p.safe = {x:d.x, y:d.y}; rings.push({x:d.x, y:d.y, t:.7, c:0xffffff, max:26}); }
+function noteSafe(p) { if (!(p.air > 0) && !p.drown && cur && dropOK(cur, p.x, p.y)) p.safe = {x:p.x, y:p.y}; }
 function splash(p) {
   rings.push({x:p.x, y:p.y, t:.7, c:0xffffff, max:40}); setTimeout(() => rings.push({x:p.x, y:p.y, t:.9, c:0xcfe9ff, max:64}), 220);
   beep(240, .2, 'sine', .06); buzz(30);
@@ -1342,9 +1367,8 @@ function splash(p) {
   p.vx = p.vy = p.ux = p.uy = 0; p.fx.tornado = 0; p.air = 0; p.drown = {t:1.1}; p.moving = true; drag = null;
 }
 function splashEnd(p) {
-  p.drown = null; toast(p.fell || 'In the water. Back to where you shot from'); p.fell = null; kimBad(p); p.kimDone = true; knocked(p, false);
-  if (cur.water.some(w => inR(p.last, w))) p.last = {x:cur.tee[0], y:cur.tee[1]};
-  p.x = p.last.x; p.y = p.last.y; p.vx = p.vy = p.ux = p.uy = 0; p.moving = false; p.shot = true; intro = Math.max(intro, .7); // no penalty stroke: only the shot itself counts
+  p.drown = null; toast(p.fell ? p.fell.replace('Back to where you shot from', 'Dropped next to where it went in') : 'In the water. Dropped next to where it went in'); p.fell = null; kimBad(p); p.kimDone = true; knocked(p, false);
+  dropBall(p); p.moving = false; p.shot = true; intro = Math.max(intro, .7); // no penalty stroke: only the shot itself counts
   onRest(p);
 }
 function finish(p, score) {
@@ -1657,7 +1681,7 @@ function obstaclePush(q, dt) { // windmill arms and sliding gates keep working o
   if (!q.shot) q.last = {x:x0, y:y0}; // if it gets shoved into trouble it comes back to where it was sitting
   q.moving = true; if (q === ap()) drag = null;
   if (r === 'sink') { if (q !== ap()) toast(q.name + ' got knocked into the cup'); sink(q); }
-  else if (r === 'water' || r === 'oob') { rings.push({x:q.x, y:q.y, t:.6, c:0x9fd4ff, max:36}); q.x = q.last.x; q.y = q.last.y; q.vx = q.vy = q.ux = q.uy = 0; q.air = 0; q.vz = 0; q.moving = false; }
+  else if (r === 'water' || r === 'oob') { rings.push({x:q.x, y:q.y, t:.6, c:0x9fd4ff, max:36}); q.safe = {x:x0, y:y0}; dropBall(q); q.moving = false; }
 }
 function otherBalls(p, dt) { // pass and play: every ball on the green is a live body
   for (const q of players) {
@@ -1665,8 +1689,8 @@ function otherBalls(p, dt) { // pass and play: every ball on the green is a live
     if (q.vx || q.vy) {
       q.moving = true; const r = stepBall(q, dt, false);
       if (r === 'sink') { toast(q.name + ' got knocked into the cup'); sink(q); }
-      else if (r === 'water' || r === 'oob') { rings.push({x:q.x, y:q.y, t:.6, c:0x9fd4ff, max:36}); q.x = q.last.x; q.y = q.last.y; q.vx = q.vy = q.ux = q.uy = 0; q.moving = false; }
-      else if (!q.vx && !q.vy) { q.moving = false; q.cup = null; unstick(q); }
+      else if (r === 'water' || r === 'oob') { rings.push({x:q.x, y:q.y, t:.6, c:0x9fd4ff, max:36}); dropBall(q); q.moving = false; }
+      else { noteSafe(q); if (!q.vx && !q.vy) { q.moving = false; q.cup = null; unstick(q); } }
     } else q.moving = false;
   }
   const live = players.filter(q => !q.done && !q.warp);
@@ -1806,9 +1830,9 @@ function update(dt) {
     const r = stepBall(p, dt, false);
     if (r === 'sink') sink(p);
     else if (r === 'water') splash(p);
-    else if (r === 'zap') { rings.push({x:p.x, y:p.y, t:.6, c:0xff3b2f, max:50}); toast('🦉 The owl caught you. Back to where you shot from'); beep(90, .3, 'sawtooth', .07); buzz(60); p.x = p.last.x; p.y = p.last.y; p.vx = 0; p.vy = 0; p.ux = 0; p.uy = 0; p.air = 0; p.moving = false; p.shot = true; onRest(p); }
-    else if (r === 'oob') { if (p.flew) { p.flew = false; toast('Out of bounds. Back to where you shot from'); beep(200, .2, 'sine', .05); p.shot = true; } knocked(p, false); p.air = 0; p.vz = 0; p.x = p.last.x; p.y = p.last.y; p.vx = p.vy = p.ux = p.uy = 0; p.moving = false; p.fx.tornado = 0; onRest(p); }
-    else if (p.vx === 0 && p.vy === 0 && !p.cup && !(p.air > 0) && !(p.fx.tornado > 0)) { p.moving = false; onRest(p); }
+    else if (r === 'zap') { rings.push({x:p.x, y:p.y, t:.6, c:0xff3b2f, max:50}); toast('🦉 The owl caught you. Dropped where it spotted you'); beep(90, .3, 'sawtooth', .07); buzz(60); noteSafe(p); dropBall(p); p.moving = false; p.shot = true; onRest(p); }
+    else if (r === 'oob') { if (p.flew) { p.flew = false; toast('Out of bounds. Dropped next to where it went out'); beep(200, .2, 'sine', .05); p.shot = true; } knocked(p, false); dropBall(p); p.moving = false; p.fx.tornado = 0; onRest(p); }
+    else { noteSafe(p); if (p.vx === 0 && p.vy === 0 && !p.cup && !(p.air > 0) && !(p.fx.tornado > 0)) { p.moving = false; onRest(p); } }
   }
 }
 
@@ -1828,7 +1852,7 @@ function aim() {
 function canAim() { const p = ap(); return phase === 'play' && !lock && !tut && intro <= 0 && p && !(p.stunLock > 0) && !p.done && !p.moving; }
 function shoot(forced) {
   const p = ap(), a = forced || aim(); drag = null; if (!a || !canAim()) return;
-  p.prev = {x:p.x, y:p.y}; p.last = {x:p.x, y:p.y}; p.from = {x:p.x, y:p.y}; p.kimDone = false; p.blast = false;
+  p.prev = {x:p.x, y:p.y}; p.last = {x:p.x, y:p.y}; p.safe = {x:p.x, y:p.y}; p.from = {x:p.x, y:p.y}; p.kimDone = false; p.blast = false;
   p.vx = a.ux * a.pw * VMAX * a.mul; p.vy = a.uy * a.pw * VMAX * a.mul; p.ux = p.vx; p.uy = p.vy; p.air = 0; p.vz = 0; p.skips = 0; p.flew = false; p.fx.barrier = 0; if (p.fx.super > 0) p.fx.super = 0; if (p.fx.boom > 0) { p.fx.boom = 0; p.boomArmed = true; } p.fx.clock = 0; decoys.forEach(q => { if (q.owner === p) q.age++; }); p.moving = true; p.shot = true; p.strokes++;
   if (p.fx.magnet > 0) { p.fx.magnet = 0; p.aMagnet = true; }
   if (p.fx.laser > 0) p.fx.laser--;
