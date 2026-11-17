@@ -2443,7 +2443,7 @@ function putBall(key, x, y, c, alpha, av, label, emo, mine) {
     b.blob = mk(new THREE.CircleGeometry(BR * 1.15, 16), new THREE.MeshBasicMaterial({color:0x000000, transparent:true, opacity:.2, depthWrite:false}), 0, .45, 0, false); b.blob.rotation.x = -Math.PI / 2; b.g.add(b.blob);
     b.g.add(b.sph); b.g.add(b.badge); b.g.add(b.label); b.g.add(b.emo); hg.add(b.g);
   }
-  b.used = fno; b.g.visible = true; b.g.position.set(x, GH(x, y), y); b.sph.position.y = BR; b.sph.scale.setScalar(1); b.badge.visible = true;
+  b.used = fno; b.g.visible = true; b.g.position.set(x, GH(x, y), y); b.sph.position.y = BR; b.sph.scale.setScalar(1); b.badge.visible = false; // no character badge over the ball
   { const dx = x - b.lx, dz = y - b.lz, dl = Math.hypot(dx, dz); if (dl > .01 && dl < 60) { rollAxis.set(dz / dl, 0, -dx / dl); b.sph.rotateOnWorldAxis(rollAxis, dl / BR); } b.lx = x; b.lz = y; }
   b.sph.material.color.set(COLORS[c % 8]); b.sph.material.opacity = alpha;
   b.badge.material.map = badgeTex(c % 8, (av | 0) % CHARS.length); b.badge.material.opacity = Math.min(1, alpha + .2);
