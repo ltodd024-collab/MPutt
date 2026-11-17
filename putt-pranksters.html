@@ -352,6 +352,7 @@ tr.me td{color:var(--sun)}
     <div id="hud">
       <div class="t"><div id="hTitle">Hole 1</div>
         <div id="hSub"><span id="hHole">🚩 1/7</span><span id="hStroke">⚪ 0/5</span><span id="hTime">90</span></div></div>
+      <button id="musBtn" aria-label="Turn music off">🎵</button>
       <button id="camBtn" aria-label="Change camera view">🎥</button>
       <button id="emoBtn" aria-label="Emotes">😀</button>
       <button id="chatBtn" class="hidden" aria-label="Open party chat">💬</button>
@@ -937,6 +938,7 @@ let roomP = null, nr = null, myPeer = null, party = [], amHost = false, G = null
 let joinedAt = 0, t0 = 0, pk = [], pkSeq = 0, seen = {}, lastPub = '', doneHole = -1, doneSeq = 0, ghosts = {}, code = '';
 let camMode = 0, kz = 1, fdt = .016;
 let tracks = [], camAim = null, camF = {x:0, z:-1};
+const INTRO = 3.6;
 let portal = null, decoys = [], rings = [], intro = 0, zoomT = 0, cheer = 0;
 let bumpCd = {}, awardSeed = 0, awardsText = [], trail = [], sinks = [], camD = 0;
 let ch = [], chSeq = 0, seenCh = {}, chatLog = [], unread = 0;
@@ -964,7 +966,43 @@ function beep(f, d, type, v) {
 }
 let lastBuzz = 0;
 function buzz(ms) { try { const n = performance.now(); if (n - lastBuzz < 60) return; lastBuzz = n; if (navigator.vibrate) navigator.vibrate(ms); } catch (e) {} }
-function wakeAudio() { try { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); } catch (e) {} }
+function wakeAudio() { try { if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); if (MUS.on && !MUS.timer) musicStart(); } catch (e) {} }
+let noiseBuf = null;
+function noise(t, d, v, f0, f1, q) { // a burst of filtered noise: putter clicks, splashes, hats
+  try { if (!ac) return; if (!noiseBuf) { noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate); const ch = noiseBuf.getChannelData(0); for (let i = 0; i < ch.length; i++) ch[i] = Math.random() * 2 - 1; }
+    const src = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain(); src.buffer = noiseBuf; fl.type = 'bandpass'; fl.Q.value = q || 1; fl.frequency.setValueAtTime(f0, t); if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t + d);
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); src.connect(fl); fl.connect(g); g.connect(ac.destination); src.start(t, Math.random() * .5); src.stop(t + d + .02); } catch (e) {}
+}
+function noiseTo(dest, t, d, v, f0, f1, q) { try { if (!ac || !dest) return; if (!noiseBuf) noise(t, .001, .0001, 1000); const src = ac.createBufferSource(), fl = ac.createBiquadFilter(), g = ac.createGain(); src.buffer = noiseBuf; fl.type = 'bandpass'; fl.Q.value = q || 1; fl.frequency.setValueAtTime(f0, t); if (f1) fl.frequency.exponentialRampToValueAtTime(f1, t + d);
+    g.gain.setValueAtTime(v, t); g.gain.exponentialRampToValueAtTime(.0001, t + d); src.connect(fl); fl.connect(g); g.connect(dest); src.start(t, Math.random() * .5); src.stop(t + d + .02); } catch (e) {} }
+function tone(f, t, d, type, v, dest, f2) { try { const o = ac.createOscillator(), g = ac.createGain(); o.type = type || 'sine'; o.frequency.setValueAtTime(f, t); if (f2) o.frequency.exponentialRampToValueAtTime(f2, t + d);
+  g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(v, t + .008); g.gain.exponentialRampToValueAtTime(.0001, t + d); o.connect(g); g.connect(dest || ac.destination); o.start(t); o.stop(t + d + .05); } catch (e) {} }
+const SFX = {
+  putt(pw) { if (!ac) return; const t = ac.currentTime; noise(t, .05, .35, 3200, 0, 1.4); tone(170 + pw * 60, t, .12, 'sine', .22, null, 60); },
+  rail(b) { if (!ac) return; const t = ac.currentTime, k = Math.min(1, b / 400); tone(240 + k * 120, t, .07, 'triangle', .05 + k * .08, null, 120); noise(t, .04, .06 + k * .1, 1800, 0, 2); },
+  splash() { if (!ac) return; const t = ac.currentTime; noise(t, .5, .3, 900, 200, .8); noise(t + .05, .35, .15, 2600, 600, 1); tone(300, t, .25, 'sine', .06, null, 90); },
+  warp() { if (!ac) return; const t = ac.currentTime; tone(300, t, .32, 'sine', .08, null, 1400); tone(450, t + .05, .3, 'triangle', .04, null, 1800); },
+  fanfare(lvl) { if (!ac) return; const t = ac.currentTime, seq = lvl >= 3 ? [523, 659, 784, 1047, 1319, 1568] : lvl === 2 ? [523, 659, 784, 1047] : lvl === 1 ? [523, 784] : [392];
+    seq.forEach((f, i) => { tone(f, t + i * .09, .32, 'square', .045); tone(f / 2, t + i * .09, .3, 'triangle', .06); }); if (lvl >= 2) noise(t + seq.length * .09, .6, .12, 6000, 9000, .7); }
+};
+// background music: a light, bouncy loop built on the fly (I - vi - IV - V), with a mute button in the corner
+const MUS = {on:(() => { try { return localStorage.getItem('pp_music') !== '0'; } catch (e) { return true; } })(), g:null, timer:0, next:0, step:0};
+const MEL = [76, 0, 79, 0, 81, 79, 76, 0, 72, 0, 76, 0, 74, 0, 72, 0, 69, 0, 72, 0, 74, 72, 69, 0, 71, 0, 74, 0, 79, 0, 0, 0];
+const CHORDS = [[60, 64, 67], [57, 60, 64], [53, 57, 60], [55, 59, 62]];
+const mf = m => 440 * Math.pow(2, (m - 69) / 12);
+function musicTick() { if (!ac || !MUS.g) return; const E = 60 / 112 / 2;
+  if (MUS.next < ac.currentTime) MUS.next = ac.currentTime + .05; // after the tab was hidden, pick up from now
+  while (MUS.next < ac.currentTime + .3) { const t = MUS.next, st = MUS.step, bar = Math.floor(st / 8) % 4, ch = CHORDS[bar], b8 = st % 8;
+    if (b8 === 0 || b8 === 4 || b8 === 6) tone(mf(ch[0] - 24), t, E * 1.6, 'triangle', .5, MUS.g);
+    tone(mf(ch[[0, 1, 2, 1][st % 4]] + 12), t, E * .9, 'square', .1, MUS.g);
+    if (b8 % 2 === 1) noiseTo(MUS.g, t, .04, .12, 7000, 0, .8);
+    if (b8 === 2 || b8 === 6) noiseTo(MUS.g, t, .09, .18, 1500, 400, .7);
+    const m = MEL[st % 32]; if (m && Math.floor(st / 32) % 2 === 1) tone(mf(m), t, E * 1.7, 'triangle', .28, MUS.g);
+    MUS.next += E; MUS.step++; } }
+function musicStart() { try { if (!ac || MUS.timer) return; MUS.g = ac.createGain(); MUS.g.gain.setValueAtTime(0, ac.currentTime); MUS.g.gain.linearRampToValueAtTime(.09, ac.currentTime + 1.5); MUS.g.connect(ac.destination);
+  MUS.next = ac.currentTime + .1; MUS.timer = setInterval(musicTick, 60); musicTick(); } catch (e) {} }
+function musicStop() { clearInterval(MUS.timer); MUS.timer = 0; if (MUS.g && ac) { const g = MUS.g; g.gain.setTargetAtTime(0, ac.currentTime, .12); setTimeout(() => { try { g.disconnect(); } catch (e) {} }, 800); } MUS.g = null; }
+function setMusic(on) { MUS.on = on; try { localStorage.setItem('pp_music', on ? '1' : '0'); } catch (e) {} const b = $('musBtn'); if (b) { b.textContent = on ? '🎵' : '🔇'; b.setAttribute('aria-label', on ? 'Turn music off' : 'Turn music on'); } if (on) { if (ac) musicStart(); } else musicStop(); }
 
 /* ---------- ui helpers ---------- */
 function show(id) { for (const s of ['who','home','lobby','game']) $(s).classList.toggle('hidden', s !== id); if (id === 'game') fit(); }
@@ -1151,7 +1189,7 @@ function stepBall(p, dt, sim) {
       }
     }
     if (bang > 430 && p.air <= 0) { p.air = .01; p.vz = Math.min(130, bang * .22); } // a hard hit on a rail pops the ball up
-    if (bang > 60 && !sim) { beep(180 + Math.min(bang, 400) * .3, .04, 'triangle', .04); if (bang > 150) buzz(8); }
+    if (bang > 60 && !sim) { SFX.rail(bang); if (bang > 150) buzz(8); }
     // leaving the ground over a crest, and landing again
     if (c.d.relief) {
       const gr = (GH(p.x, p.y) - hg0) / h; // how fast the ground is rising under the ball
@@ -1213,7 +1251,7 @@ function stepBall(p, dt, sim) {
     for (const dr of c.doors) if (dr.cd <= 0 && p.air < 2 && Math.hypot(p.x - dr.ax, p.y - dr.ay) < 9) {
       rings.push({x:dr.ax, y:dr.ay, t:.5, c:0x4de3ff, max:30}); rings.push({x:dr.bx, y:dr.by, t:.6, c:0xffb060, max:36});
       p.x = dr.bx; p.y = dr.by; p.px = p.x; p.py = p.y; dr.cd = .8;
-      if (dr.dx != null) { const sp = Math.hypot(p.vx, p.vy) * .8; p.vx = p.ux = dr.dx * sp; p.vy = p.uy = dr.dy * sp; } // some portals point the ball a set way when it comes out trail.length = 0; beep(900, .12, 'sine', .05); buzz(15); break;
+      if (dr.dx != null) { const sp = Math.hypot(p.vx, p.vy) * .8; p.vx = p.ux = dr.dx * sp; p.vy = p.uy = dr.dy * sp; } /* some portals point the ball a set way when it comes out */ trail.length = 0; if (!sim) SFX.warp(); buzz(15); break;
     }
     if (!inPoly(p, c.d.poly) || (c.isles.length && c.isles.some(P2 => inPoly(p, P2)))) { if (p.air > 0) p.flew = true; else { p.flew = true; return 'oob'; } } // over the rail or into a planter // a ball that clears the rail keeps flying and lands outside
     for (const b of c.boxes) if (b.cd <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < 9.5 + BR) { // anywhere the ball touches the glowing ring counts
@@ -1393,7 +1431,7 @@ function applyPrank(p, k, from, by) {
 function startHole(i) {
   holeIdx = i; cur = build(i); phase = 'play'; lock = false; drag = null; timeLeft = HOLE_TIME + 30 * (cur.d.par - 2); parts = []; ghosts = {};
   tracks = []; camAim = null;
-  doneHole = -1; bumpCd = {}; portal = null; decoys = []; rings = []; intro = 2.6; zoomT = 0; sinks.length = 0;
+  doneHole = -1; bumpCd = {}; portal = null; decoys = []; rings = []; intro = INTRO; zoomT = 0; sinks.length = 0;
   for (const p of players) {
     p.imp = null; p.warp = null; p.drown = null; p.cup = null; p.ux = p.uy = 0; p.air = 0; p.vz = 0; p.gr = undefined; p.kimQ = null; p.hb = 0; if (i === 0) p.st = {sab:0, col:0, ace:0, bmp:0};
     p.x = cur.tee[0]; p.y = cur.tee[1]; p.vx = p.vy = p.ux = p.uy = 0; p.moving = false; p.shot = false; p.strokes = 0; p.done = false;
@@ -1402,7 +1440,7 @@ function startHole(i) {
   }
   $('sheet').classList.add('hidden'); closePicker(); show('game');
   $('cardHole').textContent = 'Hole ' + (i + 1) + ' of ' + N; $('cardName').textContent = cur.d.name; $('cardPar').textContent = 'Par ' + cur.d.par;
-  { const cd = $('card'); cd.classList.add('hidden'); void cd.offsetWidth; cd.classList.remove('hidden'); setTimeout(() => cd.classList.add('hidden'), 2500); }
+  { const cd = $('card'); cd.classList.add('hidden'); void cd.offsetWidth; cd.classList.remove('hidden'); setTimeout(() => cd.classList.add('hidden'), 3000); }
   if (cur.owl) toast("🦉 Don't roll through the owl's red circle"); if (cur.mole) toast('The mole pops up through its burrows in order'); if (cur.glass.length) toast('Some glass holds, some cracks, some shatters'); if (cur.spin.length) toast('The windmill arms bat the ball away');
   if (i === 0 && !tutSeen) { tut = 1; renderTut(); }
   if (mode === 'local') { turn = (i + players.length - 1) % players.length; nextTurn(); } else $('banner').textContent = '';
@@ -1514,7 +1552,7 @@ function dropBall(p) { const d = dropSpot(p); p.x = d.x; p.y = d.y; p.vx = p.vy 
 function noteSafe(p) { if (!(p.air > 0) && !p.drown && cur && dropOK(cur, p.x, p.y)) p.safe = {x:p.x, y:p.y}; }
 function splash(p) {
   rings.push({x:p.x, y:p.y, t:.7, c:0xffffff, max:40}); setTimeout(() => rings.push({x:p.x, y:p.y, t:.9, c:0xcfe9ff, max:64}), 220);
-  beep(240, .2, 'sine', .06); buzz(30);
+  SFX.splash(); buzz(30);
   for (let i = 0; i < 22; i++) parts.push({x:p.x, y:p.y, vx:(Math.random() - .5) * 150, vy:-60 - Math.random() * 200, l:.75, c:i % 3 ? '#cfe9ff' : '#ffffff'});
   p.vx = p.vy = p.ux = p.uy = 0; p.fx.tornado = 0; p.air = 0; p.drown = {t:1.1}; p.moving = true; drag = null;
 }
@@ -1548,8 +1586,9 @@ function sink(p) {
   beep(660, .1); setTimeout(() => beep(990, .18), 90); buzz([20, 40, 40]);
   sinks.length = 0; sinks.push({x:p.x, y:p.y, vx:p.vx, vy:p.vy, z:p.cup ? p.cup.z : -BR, vz:p.cup ? p.cup.vz : 0, c:p.c, av:p.av, t:60, r:holeR(p)}); zoomT = 1.6; cheer = 1.2;
   beep(150, .05, 'square', .05); setTimeout(() => beep(120, .04, 'square', .04), 110); setTimeout(() => beep(105, .03, 'square', .03), 190);
-  for (let i = 0; i < (s === 1 ? 40 : 0); i++) parts.push({x:cur.hole[0], y:cur.hole[1], vx:(Math.random() - .5) * 300, vy:-Math.random() * 300, l:1 + Math.random() * .6, c:COLORS[i % 8]});
-  showBig('+' + pts(s), s === 1 ? 'HOLE IN ONE' : s === 2 ? 'GREAT SHOT' : 'IN THE CUP');
+  const lvl = s === 1 ? 3 : s <= par - 1 ? 2 : s === par ? 1 : 0; SFX.fanfare(lvl);
+  for (let i = 0; i < [24, 50, 90, 160][lvl]; i++) parts.push({x:cur.hole[0] + (Math.random() - .5) * 20, y:cur.hole[1] + (Math.random() - .5) * 20, vx:(Math.random() - .5) * 380, vy:-120 - Math.random() * 380, l:1.2 + Math.random() * 1.2, c:['#ff5d8f', '#ffd166', '#4cc9f0', '#7ae582', '#c77dff', '#ffffff'][i % 6]});
+  showBig('+' + pts(s), s === 1 ? 'HOLE IN ONE!' : s <= par - 2 ? 'EAGLE!' : s === par - 1 ? 'BIRDIE!' : s === par ? 'PAR' : s === par + 1 ? 'BOGEY' : 'IN THE CUP');
   if (cur.d.theme === 'sxm') setTimeout(() => kimSay(p, 'Welcome to St. Martin! Hop in.'), 900);
   p.x = cur.hole[0]; p.y = cur.hole[1];
   finish(p, pts(s));
@@ -2010,7 +2049,7 @@ function shoot(forced) {
   p.vx = a.ux * a.pw * VMAX * a.mul; p.vy = a.uy * a.pw * VMAX * a.mul; p.ux = p.vx; p.uy = p.vy; p.air = 0; p.vz = 0; p.skips = 0; p.flew = false; p.fx.barrier = 0; if (p.fx.super > 0) p.fx.super = 0; if (p.fx.boom > 0) { p.fx.boom = 0; p.boomArmed = true; } p.fx.clock = 0; decoys.forEach(q => { if (q.owner === p) q.age++; }); p.moving = true; p.shot = true; p.strokes++;
   if (p.fx.magnet > 0) { p.fx.magnet = 0; p.aMagnet = true; }
   if (p.fx.laser > 0) p.fx.laser--;
-  beep(320 + a.pw * 300, .07, 'triangle', .06); buzz(10 + a.pw * 20); trail.length = 0;
+  SFX.putt(a.pw); buzz(10 + a.pw * 20); trail.length = 0;
   for (let j = 0; j < 7; j++) parts.push({x:p.x, y:p.y, vx:-a.ux * 60 + (Math.random() - .5) * 70, vy:-Math.random() * 60, l:.4, c:'#eaffea'});
   hud();
 }
@@ -2658,6 +2697,13 @@ function routeOf(c) { // the playing line from tee to cup: the drawn centreline 
   else r = [c.tee].concat(c.d.path || []);
   r = r.concat([c.hole]); return (c.route = r);
 }
+function flyPose(c, u) { // camera position and look point for the hole intro, u from 0 (start) to 1 (end)
+  const R2 = routeOf(c), L = [0]; for (let i = 1; i < R2.length; i++) L.push(L[i - 1] + Math.hypot(R2[i][0] - R2[i - 1][0], R2[i][1] - R2[i - 1][1]));
+  const tot = L[L.length - 1] || 1, at = f => { const d = f * tot; let i = 1; while (i < L.length - 1 && L[i] < d) i++; const a = R2[i - 1], b = R2[i], seg = (L[i] - L[i - 1]) || 1, t = Math.min(1, Math.max(0, (d - L[i - 1]) / seg)), dx = b[0] - a[0], dz = b[1] - a[1], dl = Math.hypot(dx, dz) || 1; return [a[0] + dx * t, a[1] + dz * t, dx / dl, dz / dl]; };
+  const H = c.hole, end = at(.999), aEnd = Math.atan2(-end[3], -end[2]), ez = e => e * e * (3 - 2 * e);
+  if (u < .34) { const v = ez(u / .34), a = aEnd - 1.5 * (1 - v), r = 90 + 40 * v, y = 55 + 95 * v, gh = GH(H[0], H[1]); return [H[0] + Math.cos(a) * r, gh + y, H[1] + Math.sin(a) * r, H[0], gh, H[1]]; }
+  const s = ez((u - .34) / .66), P = at(1 - s), gh = GH(P[0], P[1]); return [P[0] - P[2] * 130, gh + 150, P[1] - P[3] * 130, P[0] + P[2] * 50, gh, P[1] + P[3] * 50];
+}
 function lookPoint(c, x, y) { // where the camera should face: the cup if there is a clear line to it, otherwise the furthest stretch of the route AHEAD that is in view
   const big = []; for (const r of c.blocks) if (Math.max(r[2], r[3]) > 70) big.push(...rectSegs(r)); // only the rail and long dividing walls hide the route
   const clear = q => ![c.segs, big, c.wsegs].some(L => L.some(s => segHit(x, y, q[0], q[1], s)));
@@ -2818,7 +2864,7 @@ function draw() {
   // camera sits behind and above the ball, looking up the course
   let bx = p ? p.x : c.tee[0], by = p ? p.y : c.tee[1];
   if (p && p.done && sinks.length) { bx = c.hole[0]; by = c.hole[1] + 30; }
-  const fly = intro > 0 ? Math.min(1, Math.max(0, (intro - .7) / 1.7)) : 0, fe = fly * fly * (3 - 2 * fly);
+  const fe = 0; // the hole intro is its own flyover now, see flyPose
   bx += (c.hole[0] - bx) * fe; by += (c.hole[1] + 30 - by) * fe;
   const hf = 2 * Math.atan(Math.tan(cam.fov * Math.PI / 360) * cam.aspect);
   const aiming = !!(drag && canAim());
@@ -2841,6 +2887,10 @@ function draw() {
   const jit = (shake > 0 || (p && (p.fx.quake > 0 || p.fx.flour > 0) && phase === 'play')) ? 7 : 0;
   cam.position.set(camT.x - camF.x * dist * .714 + (Math.random() - .5) * jit, dist * .7 + (Math.random() - .5) * jit, camT.z - camF.z * dist * .714);
   cam.lookAt(camT.x + (Math.random() - .5) * jit, 0, camT.z);
+  if (intro > .7 && phase === 'play' && !tut && camMode !== 1) { // flyover blends into the normal camera over its last moments
+    const u = Math.min(1, Math.max(0, 1 - (intro - .7) / (INTRO - .7))), w0 = Math.min(1, (intro - .7) / .5), k = w0 * w0 * (3 - 2 * w0), fp = flyPose(c, u);
+    const lx = camT.x + (fp[3] - camT.x) * k, ly = fp[4] * k, lz = camT.z + (fp[5] - camT.z) * k;
+    cam.position.set(cam.position.x + (fp[0] - cam.position.x) * k, cam.position.y + (fp[1] - cam.position.y) * k, cam.position.z + (fp[2] - cam.position.z) * k); cam.lookAt(lx, ly, lz); }
   R.render(scene, cam);
   // screen-space overlay: confetti, ink, flour
   const k = cv.width / sw; ctx.setTransform(k, 0, 0, k, 0, 0); ctx.clearRect(0, 0, sw, sh);
@@ -2898,7 +2948,7 @@ function hud() {
 
 /* ---------- input ---------- */
 function pos(e) { const r = cv.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; }
-cv.addEventListener('pointerdown', e => { wakeAudio(); if (!canAim()) return; const q = pos(e); drag = {sx:q.x, sy:q.y, cx:q.x, cy:q.y}; clearKimForAim(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
+cv.addEventListener('pointerdown', e => { wakeAudio(); if (phase === 'play' && !tut && intro > .75) { intro = .75; return; } if (!canAim()) return; const q = pos(e); drag = {sx:q.x, sy:q.y, cx:q.x, cy:q.y}; clearKimForAim(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
 cv.addEventListener('pointermove', e => { if (!drag) return; const q = pos(e); drag.cx = q.x; drag.cy = q.y; });
 cv.addEventListener('pointerup', () => { if (drag) shoot(null); });
 cv.addEventListener('pointercancel', () => { drag = null; });
@@ -2972,6 +3022,7 @@ renderChars(); renderSwatches(); renderLocalNames();
 $('whoGo').onclick = () => { wakeAudio(); saveMe(); renderMe(); show('home'); };
 $('changeBtn').onclick = () => show('who');
 $('camBtn').onclick = () => { camMode = (camMode + 1) % 3; toast(['Camera: behind the ball, facing the cup', 'Camera: whole course from above', 'Camera: close behind the ball'][camMode]); };
+$('musBtn').onclick = () => { wakeAudio(); setMusic(!MUS.on); }; setMusic(MUS.on);
 $('emoBtn').onclick = () => { const box = $('emotes'), p = ap(); if (box.classList.contains('hidden') && p) [...box.children].forEach(b => { b.textContent = ''; b.appendChild(faceImg(p.av, EMO_EXPR[b.dataset.e])); }); box.classList.toggle('hidden'); };
 EMOTES.forEach(e => { const b = el('button', '', e); b.dataset.e = e; b.setAttribute('aria-label', 'Reaction ' + (EMO_EXPR[e] || e)); b.onclick = () => sendEmote(e); $('emotes').appendChild(b); });
 window.addEventListener('resize', fit);
