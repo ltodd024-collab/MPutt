@@ -168,6 +168,15 @@ textarea{font:inherit;color:inherit;background:#0f1a2c;border:2px solid var(--li
 #itemCard .bar i{display:block;height:100%;width:100%;background:#9aa3b5;transform-origin:left;animation:barGo linear forwards}
 @keyframes cardIn{from{transform:scale(.6) translateY(30px);opacity:0}to{transform:none;opacity:1}}
 @keyframes barGo{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+
+.dot.ava{overflow:hidden;background-clip:padding-box}
+.dot.ava img,.pcard .port img,#preview img{width:100%;height:100%;display:block;object-fit:contain}
+.pcard .port{padding:2px}
+#preview{overflow:hidden;padding:6px}
+#chars .ch{width:62px;height:76px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;padding:4px 2px}
+#chars .ch img{width:46px;height:46px}
+.ch .chn{font-size:10px;font-weight:700;line-height:1;opacity:.85}
+#game #emotes button img{width:44px;height:44px;display:block;margin:auto}
 #stage::after{content:"";position:absolute;inset:0;pointer-events:none;z-index:1;
   background:radial-gradient(ellipse at 50% 45%,rgba(0,0,0,0) 55%,rgba(8,14,26,.42) 100%)}
 #toasts,#banner{z-index:2}
@@ -511,6 +520,63 @@ const $ = id => document.getElementById(id);
 const W = 360, H = 540, BR = 3.8, HR = 9.6, GRAV = 1752, HOLE_TIME = 120, VMAX = 480;
 const COLORS = ['#ff5d8f','#4cc9f0','#ffd166','#7ae582','#c77dff','#ff9f1c','#f8f9fa','#2ec4b6'];
 const CHARS = ['🦊','🐸','🤖','👽','🐙','🦄','🐧','🐻','🐱','🦖'];
+const FACES = [ // ten original cartoon characters, drawn in code so they can pull faces
+  {n:'Roxy', base:'#f28c3c', dark:'#b9561b'}, {n:'Ribbit', base:'#6fcf5f', dark:'#3c8f36'}, {n:'Bolt', base:'#b9c6d8', dark:'#6f7c90'}, {n:'Zorp', base:'#98e06a', dark:'#5a9a3a'},
+  {n:'Inky', base:'#b06ad8', dark:'#7a3aa0'}, {n:'Sparkle', base:'#fff2fa', dark:'#d9a9c9'}, {n:'Waddles', base:'#2f3644', dark:'#141820'}, {n:'Bruno', base:'#9a6337', dark:'#5f3a1d'},
+  {n:'Whiskers', base:'#9a9aa8', dark:'#5f5f6c'}, {n:'Rex', base:'#4fb06a', dark:'#2c7a42'}];
+const EMO_EXPR = {'😂':'laugh', '😎':'cool', '😭':'cry', '😡':'mad', '👏':'happy', '🫵':'smug', '🔥':'wow', '💀':'dead'};
+function faceSVG(av, ex) {
+  const F = FACES[(av | 0) % FACES.length], k = (av | 0) % FACES.length, B = F.base, D = F.dark, O = 'stroke="#20160f" stroke-width="2.4" stroke-linejoin="round"';
+  let back = '', head = '', front = '', ey = 52, ex1 = 38, ex2 = 62, er = 7.5, mouthY = 70, eyeWhite = '#fff';
+  if (k === 0) { back = `<path d="M22 40 L27 10 L46 30Z" fill="${B}" ${O}/><path d="M78 40 L73 10 L54 30Z" fill="${B}" ${O}/><path d="M27 31 L29 17 L39 29Z" fill="#fff2e0"/><path d="M73 31 L71 17 L61 29Z" fill="#fff2e0"/>`;
+    front = `<path d="M24 62 Q50 92 76 62 Q64 74 50 74 Q36 74 24 62Z" fill="#fff6ea"/><ellipse cx="50" cy="62" rx="4.5" ry="3.2" fill="#20160f"/>`; }
+  if (k === 1) { back = `<circle cx="34" cy="34" r="14" fill="${B}" ${O}/><circle cx="66" cy="34" r="14" fill="${B}" ${O}/>`; ey = 34; ex1 = 34; ex2 = 66; er = 9; mouthY = 66;
+    front = `<circle cx="28" cy="62" r="5" fill="#ff9fb0" opacity=".6"/><circle cx="72" cy="62" r="5" fill="#ff9fb0" opacity=".6"/>`; }
+  if (k === 2) { back = `<line x1="50" y1="26" x2="50" y2="10" stroke="#20160f" stroke-width="3"/><circle cx="50" cy="9" r="5" fill="#ff4d4d" ${O}/>`;
+    head = `<rect x="18" y="26" width="64" height="60" rx="14" fill="${B}" ${O}/><rect x="12" y="46" width="8" height="18" rx="3" fill="${D}" ${O}/><rect x="80" y="46" width="8" height="18" rx="3" fill="${D}" ${O}/>`; eyeWhite = '#bff4ff'; }
+  if (k === 3) { back = `<path d="M38 30 Q30 14 24 10" stroke="#20160f" stroke-width="3" fill="none"/><circle cx="24" cy="10" r="5" fill="#ffe14d" ${O}/><path d="M62 30 Q70 14 76 10" stroke="#20160f" stroke-width="3" fill="none"/><circle cx="76" cy="10" r="5" fill="#ffe14d" ${O}/>`;
+    head = `<ellipse cx="50" cy="54" rx="30" ry="33" fill="${B}" ${O}/>`; er = 9; eyeWhite = '#16202b'; }
+  if (k === 4) { back = [18, 32, 46, 60, 74].map((x, i) => `<path d="M${x} 74 q${i % 2 ? 4 : -4} 14 ${i % 2 ? -2 : 6} 20" stroke="${B}" stroke-width="9" stroke-linecap="round" fill="none"/>`).join('');
+    front = `<circle cx="30" cy="38" r="3.5" fill="${D}" opacity=".6"/><circle cx="68" cy="34" r="4.5" fill="${D}" opacity=".6"/><circle cx="58" cy="28" r="2.5" fill="${D}" opacity=".6"/>`; }
+  if (k === 5) { back = `<path d="M44 28 L50 2 L56 28Z" fill="#ffd34d" ${O}/><path d="M46 20 L54 17 M45 13 L53 10" stroke="#d99a1a" stroke-width="2"/><circle cx="22" cy="40" r="10" fill="#ff8fd0"/><circle cx="18" cy="56" r="9" fill="#b18cff"/><circle cx="24" cy="70" r="8" fill="#7ad2ff"/><circle cx="32" cy="28" r="9" fill="#ff8fd0"/>`;
+    front = `<circle cx="30" cy="64" r="5" fill="#ff9fcf" opacity=".55"/><circle cx="70" cy="64" r="5" fill="#ff9fcf" opacity=".55"/>`; }
+  if (k === 6) { front = `<path d="M44 60 L56 60 L50 70Z" fill="#ff9d2e" ${O}/>`; mouthY = 76;
+    head = `<ellipse cx="50" cy="56" rx="31" ry="29" fill="${B}" ${O}/><path d="M24 58 Q26 34 50 42 Q74 34 76 58 Q74 82 50 82 Q26 82 24 58Z" fill="#fff"/>`; }
+  if (k === 7) { back = `<circle cx="26" cy="32" r="11" fill="${B}" ${O}/><circle cx="74" cy="32" r="11" fill="${B}" ${O}/><circle cx="26" cy="32" r="5" fill="#e8b48a"/><circle cx="74" cy="32" r="5" fill="#e8b48a"/>`;
+    front = `<ellipse cx="50" cy="68" rx="15" ry="11" fill="#e8c29a"/><ellipse cx="50" cy="62" rx="5" ry="3.6" fill="#20160f"/>`; mouthY = 72; }
+  if (k === 8) { back = `<path d="M22 42 L24 12 L44 30Z" fill="${B}" ${O}/><path d="M78 42 L76 12 L56 30Z" fill="${B}" ${O}/><path d="M27 33 L28 20 L37 30Z" fill="#ffb3c4"/><path d="M73 33 L72 20 L63 30Z" fill="#ffb3c4"/>`;
+    front = `<path d="M44 34 L46 26 M50 34 L50 25 M56 34 L54 26" stroke="${D}" stroke-width="2.5"/><path d="M14 62 L34 64 M14 70 L34 68 M86 62 L66 64 M86 70 L66 68" stroke="#20160f" stroke-width="1.5"/><path d="M47 61 L53 61 L50 65Z" fill="#ff7c9c"/>`; }
+  if (k === 9) { back = `<path d="M30 30 L36 14 L42 28 L48 10 L54 27 L60 12 L66 28 L72 16 L74 34Z" fill="#ffcf4d" ${O}/>`;
+    front = `<path d="M26 66 Q50 90 74 66 Q50 80 26 66Z" fill="#c9f2b8"/><circle cx="45" cy="64" r="1.6" fill="#20160f"/><circle cx="55" cy="64" r="1.6" fill="#20160f"/>`; mouthY = 74; }
+  if (!head) head = `<ellipse cx="50" cy="56" rx="31" ry="29" fill="${B}" ${O}/>`;
+  const eyes = (pup) => `<circle cx="${ex1}" cy="${ey}" r="${er}" fill="${eyeWhite}" ${O}/><circle cx="${ex2}" cy="${ey}" r="${er}" fill="${eyeWhite}" ${O}/>` + (pup ? `<circle cx="${ex1 + pup[0]}" cy="${ey + pup[1]}" r="${er * .45}" fill="${k === 3 ? '#e8fff0' : '#20160f'}"/><circle cx="${ex2 + pup[0]}" cy="${ey + pup[1]}" r="${er * .45}" fill="${k === 3 ? '#e8fff0' : '#20160f'}"/><circle cx="${ex1 + pup[0] + 1.4}" cy="${ey + pup[1] - 1.6}" r="1.3" fill="#fff"/><circle cx="${ex2 + pup[0] + 1.4}" cy="${ey + pup[1] - 1.6}" r="1.3" fill="#fff"/>` : '');
+  const arcs = (up) => `<path d="M${ex1 - er} ${ey + (up ? 2 : -1)} Q${ex1} ${ey + (up ? -7 : 6)} ${ex1 + er} ${ey + (up ? 2 : -1)}" stroke="#20160f" stroke-width="3.2" fill="none" stroke-linecap="round"/><path d="M${ex2 - er} ${ey + (up ? 2 : -1)} Q${ex2} ${ey + (up ? -7 : 6)} ${ex2 + er} ${ey + (up ? 2 : -1)}" stroke="#20160f" stroke-width="3.2" fill="none" stroke-linecap="round"/>`;
+  const M = mouthY; let face = '', extra = '';
+  if (ex === 'laugh') { face = arcs(true) + `<path d="M36 ${M - 4} Q50 ${M + 16} 64 ${M - 4}Z" fill="#5a1620" ${O}/><path d="M43 ${M + 5} Q50 ${M + 1} 57 ${M + 5} Q50 ${M + 9} 43 ${M + 5}Z" fill="#ff7c8c"/>`;
+    extra = `<path d="M${ex1 - 9} ${ey + 4} q-4 8 0 11 q4 -3 0 -11Z" fill="#7cd3ff"/><path d="M${ex2 + 9} ${ey + 4} q-4 8 0 11 q4 -3 0 -11Z" fill="#7cd3ff"/>`; }
+  else if (ex === 'cool') { face = `<rect x="${ex1 - 12}" y="${ey - 7}" width="22" height="13" rx="5" fill="#141414"/><rect x="${ex2 - 10}" y="${ey - 7}" width="22" height="13" rx="5" fill="#141414"/><rect x="${ex1 + 8}" y="${ey - 4}" width="${ex2 - ex1 - 16}" height="3" fill="#141414"/><path d="M${ex1 - 8} ${ey - 4} l5 0" stroke="#fff" stroke-width="2" opacity=".7"/><path d="M40 ${M} Q52 ${M + 6} 62 ${M - 3}" stroke="#20160f" stroke-width="3.2" fill="none" stroke-linecap="round"/>`; }
+  else if (ex === 'cry') { face = eyes([0, -2.5]) + `<path d="M40 ${M + 3} Q50 ${M - 6} 60 ${M + 3}" stroke="#20160f" stroke-width="3.2" fill="none" stroke-linecap="round"/>`;
+    extra = `<path d="M${ex1 - 4} ${ey + er} q-3 14 -1 30 l6 0 q0 -16 -1 -30Z" fill="#7cd3ff" opacity=".9"/><path d="M${ex2 + 4} ${ey + er} q3 14 1 30 l-6 0 q0 -16 1 -30Z" fill="#7cd3ff" opacity=".9"/>`; }
+  else if (ex === 'mad') { face = eyes([0, 1]) + `<path d="M${ex1 - 10} ${ey - 13} L${ex1 + 8} ${ey - 7}" stroke="#20160f" stroke-width="4" stroke-linecap="round"/><path d="M${ex2 + 10} ${ey - 13} L${ex2 - 8} ${ey - 7}" stroke="#20160f" stroke-width="4" stroke-linecap="round"/><rect x="38" y="${M - 4}" width="24" height="9" rx="3" fill="#fff" ${O}/><path d="M44 ${M - 4} v9 M50 ${M - 4} v9 M56 ${M - 4} v9" stroke="#20160f" stroke-width="1.6"/>`;
+    extra = `<ellipse cx="50" cy="58" rx="30" ry="27" fill="#ff2a2a" opacity=".22"/><path d="M80 18 q6 -4 4 -10 M86 26 q7 -2 8 -9" stroke="#fff" stroke-width="3" fill="none" stroke-linecap="round"/>`; }
+  else if (ex === 'happy') { face = arcs(true) + `<path d="M37 ${M - 3} Q50 ${M + 12} 63 ${M - 3}" stroke="#20160f" stroke-width="3.4" fill="#fff" stroke-linecap="round"/>`;
+    extra = `<circle cx="${ex1 - 6}" cy="${ey + 11}" r="5" fill="#ff8fa8" opacity=".7"/><circle cx="${ex2 + 6}" cy="${ey + 11}" r="5" fill="#ff8fa8" opacity=".7"/><path d="M84 20 l3 7 7 3 -7 3 -3 7 -3 -7 -7 -3 7 -3Z" fill="#ffd34d"/>`; }
+  else if (ex === 'smug') { face = eyes([2, 1]) + `<rect x="${ex1 - er - 1}" y="${ey - er - 1}" width="${er * 2 + 2}" height="${er + 1}" fill="${k === 6 ? '#fff' : B}"/><rect x="${ex2 - er - 1}" y="${ey - er - 1}" width="${er * 2 + 2}" height="${er + 1}" fill="${k === 6 ? '#fff' : B}"/><path d="M${ex1 - er} ${ey} h${er * 2} M${ex2 - er} ${ey} h${er * 2}" stroke="#20160f" stroke-width="2.6"/><path d="M${ex2 - 8} ${ey - 15} q8 -6 14 0" stroke="#20160f" stroke-width="3" fill="none" stroke-linecap="round"/><path d="M42 ${M + 1} Q54 ${M + 4} 62 ${M - 5}" stroke="#20160f" stroke-width="3.2" fill="none" stroke-linecap="round"/>`; }
+  else if (ex === 'wow') { const st = (cx) => `<path d="M${cx} ${ey - 9} l2.6 6 6.4 .6 -4.8 4.2 1.4 6.4 -5.6 -3.4 -5.6 3.4 1.4 -6.4 -4.8 -4.2 6.4 -.6Z" fill="#ffd34d" stroke="#c98a00" stroke-width="1.2"/>`;
+    face = `<circle cx="${ex1}" cy="${ey}" r="${er}" fill="${eyeWhite}" ${O}/><circle cx="${ex2}" cy="${ey}" r="${er}" fill="${eyeWhite}" ${O}/>` + st(ex1) + st(ex2) + `<ellipse cx="50" cy="${M + 1}" rx="7" ry="8" fill="#5a1620" ${O}/>`;
+    extra = `<path d="M16 22 q-4 -10 4 -16 q-1 8 5 10 q3 -6 0 -12 q12 8 6 20Z" fill="#ff8a1c"/><path d="M84 22 q4 -10 -4 -16 q1 8 -5 10 q-3 -6 0 -12 q-12 8 -6 20Z" fill="#ff8a1c"/>`; }
+  else if (ex === 'dead') { const X = (cx) => `<path d="M${cx - 6} ${ey - 6} L${cx + 6} ${ey + 6} M${cx + 6} ${ey - 6} L${cx - 6} ${ey + 6}" stroke="#20160f" stroke-width="3.6" stroke-linecap="round"/>`;
+    face = X(ex1) + X(ex2) + `<path d="M40 ${M} Q50 ${M - 3} 60 ${M}" stroke="#20160f" stroke-width="3" fill="none"/><path d="M52 ${M - 1} q0 9 5 9 q5 0 4 -10Z" fill="#ff7c8c" ${O}/>`;
+    extra = `<ellipse cx="50" cy="58" rx="30" ry="27" fill="#8fd0ff" opacity=".22"/>`; }
+  else face = eyes([0, 0]) + `<path d="M39 ${M - 2} Q50 ${M + 9} 61 ${M - 2}" stroke="#20160f" stroke-width="3.2" fill="none" stroke-linecap="round"/>`;
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">${back}${head}${front}${face}${extra}</svg>`;
+}
+const faceCache = {};
+function faceURL(av, ex) { const key = (av | 0) + ':' + (ex || 'idle'); return faceCache[key] || (faceCache[key] = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(faceSVG(av, ex))); }
+function faceImg(av, ex, cls) { const im = document.createElement('img'); im.src = faceURL(av, ex); im.alt = FACES[(av | 0) % FACES.length].n; im.draggable = false; if (cls) im.className = cls; return im; }
+function faceNow(q) { if (!q) return 'idle'; if (q.em && q.em.t > 0 && EMO_EXPR[q.em.e]) return EMO_EXPR[q.em.e]; if (q.face && q.face.until > performance.now()) return q.face.ex; return 'idle'; }
+function pullFace(q, ex, t) { if (!q) return; const ms = (t || 2.4) * 1000; q.face = {ex, until:performance.now() + ms}; hud(); setTimeout(hud, ms + 60); }
+
 const EMOTES = ['😂','😎','😭','😡','👏','🫵','🔥','💀'];
 const ITEMS = {
   tornado:{e:'🌪️',n:'Tornado',prank:1,d:"whirls a rival's ball around"},
@@ -909,7 +975,7 @@ function toast(msg) {
   setTimeout(() => d.remove(), 2800);
 }
 function el(tag, cls, text) { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; }
-function dot(c, av) { const d = el('span', av == null ? 'dot' : 'dot ava'); d.style.background = COLORS[c % 8]; if (av != null) d.textContent = CHARS[(av | 0) % CHARS.length] || CHARS[0]; return d; }
+function dot(c, av) { const d = el('span', av == null ? 'dot' : 'dot ava'); d.style.background = COLORS[c % 8]; if (av != null) d.appendChild(faceImg(av)); return d; }
 
 /* ---------- course ---------- */
 function rectSegs(r) { const x = r[0], y = r[1], w = r[2], h = r[3]; return [[x,y,x+w,y],[x+w,y,x+w,y+h],[x+w,y+h,x,y+h],[x,y+h,x,y]]; }
@@ -1388,6 +1454,10 @@ function itemIntro(p, k) { // Kim explains an item the first time a player picks
   else toast('Got ' + it.e + ' ' + it.n);
 }
 let cardTimer = 0;
+function clearKimForAim() { // the moment someone starts lining up a shot, Kim and any item card get out of the way so the aim arrow is always in view
+  const kp = $('kimPop'); if (!kp.classList.contains('stay') && !kp.classList.contains('hidden')) { clearTimeout(kimTimer); clearTimeout(kimThen); kp.classList.add('hidden'); }
+  const cd = $('itemCard'); if (!cd.classList.contains('hidden')) { clearTimeout(cardTimer); cd.classList.add('hidden'); }
+}
 function itemCard(p, k) { // the first time someone grabs an item: a big card with a picture and one line, read out by Kim
   const it = ITEMS[k], cd = $('itemCard'), ms = 4600; if (!it || !cur) return;
   $('icPic').textContent = it.e; $('icTtl').textContent = it.n; $('icDsc').textContent = it.d.charAt(0).toUpperCase() + it.d.slice(1) + '. Tap it at the bottom to use it.';
@@ -1449,6 +1519,7 @@ function splash(p) {
   p.vx = p.vy = p.ux = p.uy = 0; p.fx.tornado = 0; p.air = 0; p.drown = {t:1.1}; p.moving = true; drag = null;
 }
 function splashEnd(p) {
+  pullFace(p, 'cry', 2.6);
   p.drown = null; toast(p.fell ? p.fell.replace('Back to where you shot from', 'Dropped next to where it went in') : 'In the water. Dropped next to where it went in'); p.fell = null; kimBad(p); p.kimDone = true; knocked(p, false);
   dropBall(p); p.moving = false; p.shot = true; intro = Math.max(intro, .7); // no penalty stroke: only the shot itself counts
   onRest(p);
@@ -1469,6 +1540,7 @@ function showBig(pts, label) {
   clearTimeout(bigTimer); bigTimer = setTimeout(() => b.classList.add('hidden'), 2400);
 }
 function sink(p) {
+  pullFace(p, p.strokes <= 1 ? 'wow' : 'happy', 3);
   const s = Math.max(1, p.strokes), par = cur.d.par; if (s === 1) p.st.ace++;
   if (p.knock && p.blast) knocked(p, true);
   const word = s === 1 ? 'Hole in one!' : s <= par - 1 ? 'Birdie!' : s === par ? 'Par' : s === par + 1 ? 'Bogey' : 'In at last';
@@ -1803,7 +1875,7 @@ function bumpCheck(p) {
 }
 function sendEmote(e) {
   const p = ap(); if (!p) return;
-  p.em = {e, t:2.6}; beep(600, .05, 'sine', .04);
+  p.em = {e, t:2.6}; beep(600, .05, 'sine', .04); hud(); setTimeout(hud, 2700);
   if (mode === 'online') { em = {i:++emSeq, e}; pub(); }
   $('emotes').classList.add('hidden');
 }
@@ -1965,6 +2037,9 @@ const badgeTex = (c, av) => canvasTex('b' + c + '_' + av, 96, 96, g => {
   g.fillStyle = COLORS[c % 8]; g.beginPath(); g.arc(48, 48, 41, 0, 6.3); g.fill(); g.lineWidth = 8; g.strokeStyle = '#fff'; g.stroke();
   g.font = '50px sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(CHARS[av % CHARS.length], 48, 53);
 });
+const faceBubbleTex = (av, ex) => { const key = 'fb' + av + ex; if (texCache[key]) return texCache[key];
+  const t = canvasTex(key, 96, 112, g => { g.fillStyle = '#fff'; g.beginPath(); g.arc(48, 46, 42, 0, 6.3); g.fill(); g.beginPath(); g.moveTo(34, 80); g.lineTo(48, 110); g.lineTo(62, 80); g.fill(); });
+  const im = new Image(); im.onload = () => { const c = t.image, g = c.getContext('2d'); g.drawImage(im, 10, 6, 76, 76); t.needsUpdate = true; }; im.src = faceURL(av, ex); return t; };
 const bubbleTex = e => canvasTex('u' + e, 96, 112, g => {
   g.fillStyle = '#fff'; g.beginPath(); g.arc(48, 46, 42, 0, 6.3); g.fill();
   g.beginPath(); g.moveTo(34, 80); g.lineTo(48, 110); g.lineTo(62, 80); g.fill();
@@ -2485,7 +2560,7 @@ function buildScene() {
   const blade = mk(new THREE.ExtrudeGeometry(bs, {depth:1, bevelEnabled:false}).rotateX(-Math.PI / 2), am, 6.5, 0, 0, false);
   const ridge = mk(new THREE.BoxGeometry(1, .5, .12), new THREE.MeshBasicMaterial({color:0xffd9a0, transparent:true, opacity:.8}), 0, 0, 0, false);
   arrow.add(blade); arrow.add(ridge); arrow.position.y = 2; g.add(arrow); dyn.arrow = {g:arrow, blade, ridge, am};
-  for (const o of [blade, ridge]) { o.material.depthTest = false; o.material.depthWrite = false; o.castShadow = false; } // never hidden by slopes or walls
+  for (const o of [blade, ridge]) { o.material.depthTest = false; o.material.depthWrite = false; o.castShadow = false; o.renderOrder = 50; o.frustumCulled = false; } // never hidden by slopes, walls, water or glows
   blade.renderOrder = 20; ridge.renderOrder = 21; arrow.rotation.order = 'YZX';
   dyn.turnMark = mk(new THREE.ConeGeometry(2.7, 4.2, 3).rotateX(Math.PI), new THREE.MeshBasicMaterial({color:0xffffff}), 0, 0, 0, false); dyn.turnMark.visible = false; g.add(dyn.turnMark);
   dyn.dots = []; const dm = new THREE.MeshBasicMaterial({color:0xff5d8f});
@@ -2629,7 +2704,7 @@ function putBall(key, x, y, c, alpha, av, label, emo, mine) {
   b.badge.material.map = badgeTex(c % 8, (av | 0) % CHARS.length); b.badge.material.opacity = Math.min(1, alpha + .2);
   const s = (mine ? 8.5 : 11) * kz; b.badge.scale.set(s, s, 1); b.badge.position.y = BR * 2 + 3 + s * .9; b.blob.visible = true;
   b.label.visible = !!label; if (label) { b.label.material.map = nameTex(label); b.label.scale.set(34 * kz, 8.5 * kz, 1); b.label.position.y = BR * 2 + 5 + 19 * kz; }
-  b.emo.visible = !!emo; if (emo) { b.emo.material.map = bubbleTex(emo.e); b.emo.material.opacity = Math.min(1, emo.t * 3); b.emo.scale.set(16 * kz, 18.5 * kz, 1); b.emo.position.y = BR * 2 + (label ? 34 : 26) * kz + Math.sin(Math.min(1, (2.6 - emo.t) * 5) * 1.57) * 2.5; }
+  b.emo.visible = !!emo; if (emo) { b.emo.material.map = EMO_EXPR[emo.e] ? faceBubbleTex((av | 0) % FACES.length, EMO_EXPR[emo.e]) : bubbleTex(emo.e); b.emo.material.opacity = Math.min(1, emo.t * 3); b.emo.scale.set(16 * kz, 18.5 * kz, 1); b.emo.position.y = BR * 2 + (label ? 34 : 26) * kz + Math.sin(Math.min(1, (2.6 - emo.t) * 5) * 1.57) * 2.5; }
 }
 function fit() {
   const r = $('stage').getBoundingClientRect(); if (!r.width || !r.height) return;
@@ -2810,20 +2885,20 @@ function hud() {
   $('fx').textContent = f.join('   ');
   const strip = $('strip'); strip.textContent = '';
   const lead = (() => { let best = -1, n = 0; if (mode === 'local') players.forEach(q => { const t2 = tot(q.scores) + q.hb; if (t2 > best) { best = t2; n = 1; } else if (t2 === best) n++; }); return n === 1 && best > 0 ? best : -1; })();
-  const add = (name, c, txt, on, av) => { const ch = el('div', 'pcard' + (on ? ' turn' : '')); const col = COLORS[c % 8]; if (on) ch.style.background = 'linear-gradient(135deg,' + col + ',' + col + 'cc)';
-    const pt = el('div', 'port', CHARS[(av | 0) % CHARS.length] || CHARS[0]); pt.style.background = 'linear-gradient(160deg,#ffffff55,' + col + ')'; ch.appendChild(pt);
+  const add = (name, c, txt, on, av, ex) => { const ch = el('div', 'pcard' + (on ? ' turn' : '')); const col = COLORS[c % 8]; if (on) ch.style.background = 'linear-gradient(135deg,' + col + ',' + col + 'cc)';
+    const pt = el('div', 'port'); pt.appendChild(faceImg(av, ex)); pt.style.background = 'linear-gradient(160deg,#ffffffaa,' + col + ')'; ch.appendChild(pt);
     const w = el('div'); const nm = el('div', 'nm', name); if (lead >= 0 && parseInt(String(txt).replace(/\D/g, ''), 10) === lead) nm.appendChild(el('span', 'crown', '👑')); w.appendChild(nm); w.appendChild(el('div', 'sc', txt)); ch.appendChild(w); strip.appendChild(ch); };
-  if (mode === 'local') players.forEach((q, i) => add(q.name, q.c, (q.done ? '✓ ' : '') + (tot(q.scores) + q.hb), i === turn && !q.done, q.av));
+  if (mode === 'local') players.forEach((q, i) => add(q.name, q.c, (q.done ? '✓ ' : '') + (tot(q.scores) + q.hb), i === turn && !q.done, q.av, faceNow(q)));
   else party.forEach(q => {
     const me = q.isMe && q.sameTab, done = me ? p.done : (q.presence.dh === holeIdx && q.presence.ds === gSeq);
     const sc = me ? p.scores : (Array.isArray(q.presence.s) ? q.presence.s : []);
-    add(me ? 'You' : clean(q.presence.n), (q.presence.c | 0) % 8, (done ? '✓ ' : '') + (tot(sc) + (me ? p.hb : 0)), me, me ? p.av : q.presence.av | 0);
+    add(me ? 'You' : clean(q.presence.n), (q.presence.c | 0) % 8, (done ? '✓ ' : '') + (tot(sc) + (me ? p.hb : 0)), me, me ? p.av : q.presence.av | 0, me ? faceNow(p) : faceNow(ghosts[q.peer]));
   });
 }
 
 /* ---------- input ---------- */
 function pos(e) { const r = cv.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; }
-cv.addEventListener('pointerdown', e => { wakeAudio(); if (!canAim()) return; const q = pos(e); drag = {sx:q.x, sy:q.y, cx:q.x, cy:q.y}; try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
+cv.addEventListener('pointerdown', e => { wakeAudio(); if (!canAim()) return; const q = pos(e); drag = {sx:q.x, sy:q.y, cx:q.x, cy:q.y}; clearKimForAim(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
 cv.addEventListener('pointermove', e => { if (!drag) return; const q = pos(e); drag.cx = q.x; drag.cy = q.y; });
 cv.addEventListener('pointerup', () => { if (drag) shoot(null); });
 cv.addEventListener('pointercancel', () => { drag = null; });
@@ -2849,11 +2924,11 @@ function saveMe() { myName = clean($('name').value || myName); try { localStorag
 function renderSwatches() {
   const box = $('swatches'); box.textContent = '';
   COLORS.forEach((c, i) => { const b = el('button', 'sw' + (i === myColor ? ' on' : '')); b.style.background = c; b.setAttribute('aria-label', 'Ball colour ' + (i + 1)); b.onclick = () => { myColor = i; renderSwatches(); }; box.appendChild(b); });
-  const pv = $('preview'); pv.style.background = COLORS[myColor]; pv.textContent = CHARS[myAv];
+  const pv = $('preview'); pv.style.background = COLORS[myColor]; pv.textContent = ''; pv.appendChild(faceImg(myAv, 'happy')); pv.title = FACES[myAv].n;
 }
 function renderChars() {
   const box = $('chars'); box.textContent = '';
-  CHARS.forEach((c, i) => { const b = el('button', 'ch' + (i === myAv ? ' on' : ''), c); b.setAttribute('aria-label', 'Character ' + (i + 1)); b.setAttribute('aria-pressed', i === myAv ? 'true' : 'false'); b.onclick = () => { myAv = i; renderChars(); renderSwatches(); }; box.appendChild(b); });
+  CHARS.forEach((c, i) => { const b = el('button', 'ch' + (i === myAv ? ' on' : '')); b.appendChild(faceImg(i)); b.appendChild(el('span', 'chn', FACES[i].n)); b.setAttribute('aria-label', FACES[i].n); b.setAttribute('aria-pressed', i === myAv ? 'true' : 'false'); b.onclick = () => { myAv = i; renderChars(); renderSwatches(); }; box.appendChild(b); });
 }
 function renderMe() { const a = $('meAva'); a.textContent = ''; a.appendChild(dot(myColor, myAv)); $('meName').textContent = myName; }
 function renderLocalNames() {
@@ -2897,8 +2972,8 @@ renderChars(); renderSwatches(); renderLocalNames();
 $('whoGo').onclick = () => { wakeAudio(); saveMe(); renderMe(); show('home'); };
 $('changeBtn').onclick = () => show('who');
 $('camBtn').onclick = () => { camMode = (camMode + 1) % 3; toast(['Camera: behind the ball, facing the cup', 'Camera: whole course from above', 'Camera: close behind the ball'][camMode]); };
-$('emoBtn').onclick = () => $('emotes').classList.toggle('hidden');
-EMOTES.forEach(e => { const b = el('button', '', e); b.setAttribute('aria-label', 'Emote ' + e); b.onclick = () => sendEmote(e); $('emotes').appendChild(b); });
+$('emoBtn').onclick = () => { const box = $('emotes'), p = ap(); if (box.classList.contains('hidden') && p) [...box.children].forEach(b => { b.textContent = ''; b.appendChild(faceImg(p.av, EMO_EXPR[b.dataset.e])); }); box.classList.toggle('hidden'); };
+EMOTES.forEach(e => { const b = el('button', '', e); b.dataset.e = e; b.setAttribute('aria-label', 'Reaction ' + (EMO_EXPR[e] || e)); b.onclick = () => sendEmote(e); $('emotes').appendChild(b); });
 window.addEventListener('resize', fit);
 try { new ResizeObserver(() => fit()).observe($('stage')); } catch (e) {}
 setInterval(() => { if (mode === 'online') netTick(); hud(); }, 160);
