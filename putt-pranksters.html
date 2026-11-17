@@ -749,6 +749,8 @@ function curvy(name, par, theme, pts, extra) {
     const hitR = L => (L || []).some(r => x > r[0] - 10 && x < r[0] + r[2] + 10 && y > r[1] - 10 && y < r[1] + r[3] + 10);
     if ((h.inIsle && h.inIsle(x, y, 26)) || hitR(h.water) || hitR(h.boost) || hitR(h.damp) || hitR(h.blocks) || (h.bumpers || []).some(b => Math.hypot(b[0] - x, b[1] - y) < b[2] + 13) || (h.doors || []).some(d => Math.hypot(d[0] - x, d[1] - y) < 18 || Math.hypot(d[2] - x, d[3] - y) < 18) || (h.spin || []).some(s => Math.hypot(s[0] - x, s[1] - y) < s[2] / 2 + 8)) continue;
     h.boxes.push([Math.round(x), Math.round(y)]); } }
+  if (/^(Lighthouse Bend|Dune Curl|Grotto|Tide Pools|Windmill Point|Boardwalk)$/.test(name) && h.water) // the lighthouse course: smaller pools and pockets, more room to get past
+    h.water = h.water.map(w => { const k = w[2] <= 18 ? .62 : .66, nw = Math.round(w[2] * k), nh = Math.round(w[3] * k); return [Math.round(w[0] + (w[2] - nw) / 2), Math.round(w[1] + (w[3] - nh) / 2), nw, nh]; });
   if (h.extraBoxes) { h.boxes = (h.boxes || []).concat(h.extraBoxes); delete h.extraBoxes; }
   delete h.inIsle;
   return h;
@@ -2408,12 +2410,23 @@ function segHit(ax, ay, bx, by, s) { // do segments a-b and s cross?
   const t = ((s[0] - ax) * d2y - (s[1] - ay) * d2x) / den, u = ((s[0] - ax) * d1y - (s[1] - ay) * d1x) / den;
   return t > .02 && t < .98 && u > 0 && u < 1;
 }
-function lookPoint(c, x, y) { // where the camera should face: the cup if there is a clear line to it, otherwise the next visible stretch of the route
+function routeOf(c) { // the playing line from tee to cup: the drawn centreline on winding holes, otherwise the waypoints
+  if (c.route) return c.route;
+  let r; if (c.d.cl) { r = []; for (let i = 0; i < c.d.cl.length; i += 2) r.push([c.d.cl[i][0], c.d.cl[i][1]]); }
+  else r = [c.tee].concat(c.d.path || []);
+  r = r.concat([c.hole]); return (c.route = r);
+}
+function lookPoint(c, x, y) { // where the camera should face: the cup if there is a clear line to it, otherwise the furthest stretch of the route AHEAD that is in view
   const big = []; for (const r of c.blocks) if (Math.max(r[2], r[3]) > 70) big.push(...rectSegs(r)); // only the rail and long dividing walls hide the route
-  const clear = q => ![c.segs, big].some(L => L.some(s => segHit(x, y, q[0], q[1], s)));
+  const clear = q => ![c.segs, big, c.wsegs].some(L => L.some(s => segHit(x, y, q[0], q[1], s)));
   if (clear(c.hole)) return c.hole;
-  const pts = c.d.path || []; for (let i = pts.length - 1; i >= 0; i--) if (Math.hypot(pts[i][0] - x, pts[i][1] - y) > 30 && clear(pts[i])) return pts[i];
-  for (const q of pts) if (Math.hypot(q[0] - x, q[1] - y) > 30) return q;
+  const R2 = routeOf(c); let best = 0, bd = 1e9;
+  for (let i = 0; i < R2.length - 1; i++) { // which stretch of the route the ball is on (nearest one it can actually see)
+    const a = R2[i], b = R2[i + 1], dx = b[0] - a[0], dy = b[1] - a[1]; let t = ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1); t = t < 0 ? 0 : t > 1 ? 1 : t;
+    const px = a[0] + dx * t, py = a[1] + dy * t; let d = Math.hypot(x - px, y - py); if (d > 2 && !clear([px, py])) d += 400;
+    if (d < bd) { bd = d; best = i; } }
+  for (let i = R2.length - 1; i > best; i--) if (Math.hypot(R2[i][0] - x, R2[i][1] - y) > 30 && clear(R2[i])) return R2[i];
+  for (let i = best + 1; i < R2.length; i++) if (Math.hypot(R2[i][0] - x, R2[i][1] - y) > 30) return R2[i];
   return c.hole;
 }
 function fitCam() { // smallest camera distance that keeps the whole hole between the HUD and the item buttons
