@@ -934,6 +934,7 @@ let mode = 'local', phase = 'home', holeIdx = 0, cur = null, players = [], turn 
 let T = 0, shake = 0, drag = null, timeLeft = HOLE_TIME, parts = [], scale = 1;
 let myName = 'Player', myColor = 0, myAv = 0, localCount = 2, em = null, emSeq = 0, seenEm = {};
 // online
+let lastPubT = 0, camWho = null;
 let roomP = null, nr = null, myPeer = null, party = [], amHost = false, G = null, gSeq = 0, phaseAt = 0;
 let joinedAt = 0, t0 = 0, pk = [], pkSeq = 0, seen = {}, lastPub = '', doneHole = -1, doneSeq = 0, ghosts = {}, code = '';
 let camMode = 0, kz = 1, fdt = .016;
@@ -1445,12 +1446,14 @@ function startHole(i) {
   { const cd = $('card'); cd.classList.add('hidden'); void cd.offsetWidth; cd.classList.remove('hidden'); setTimeout(() => cd.classList.add('hidden'), 3000); }
   if (cur.owl) toast("🦉 Don't roll through the owl's red circle"); if (cur.mole) toast('The mole pops up through its burrows in order'); if (cur.glass.length) toast('Some glass holds, some cracks, some shatters'); if (cur.spin.length) toast('The windmill arms bat the ball away');
   if (i === 0 && !tutSeen) { tut = 1; renderTut(); }
-  if (mode === 'local') { turn = (i + players.length - 1) % players.length; nextTurn(); } else $('banner').textContent = '';
+  if (mode === 'local') { localOrd = players.map((q, k) => k).sort((a, b) => (tot(players[b].scores) - tot(players[a].scores)) || (a - b)); turn = localOrd[localOrd.length - 1]; nextTurn(); } else $('banner').textContent = '';
   hud(); pub();
 }
-function nextTurn() {
-  const n = players.length;
-  for (let k = 1; k <= n; k++) { const j = (turn + k) % n; if (!players[j].done) { turn = j; beginTurn(); return; } }
+let localOrd = [];
+function nextTurn() { // pass and play: same rule as online, the points leader tees off and that rotation holds for the hole
+  const n = players.length; if (localOrd.length !== n) localOrd = players.map((q, i) => i);
+  const at = localOrd.indexOf(turn);
+  for (let k = 1; k <= n; k++) { const j = localOrd[(at + k + n) % n]; if (!players[j].done) { turn = j; beginTurn(); return; } }
   lock = true; setTimeout(() => showScores(holeIdx === N - 1), 2000);
 }
 function beginTurn() {
@@ -1737,7 +1740,7 @@ function leaveParty() {
 }
 function pres() {
   const p = players[0];
-  return {n:p.name, c:p.c, av:p.av, em, st:p.st, t0, h:holeIdx, x:Math.round(p.x), y:Math.round(p.y), cs:p.strokes, s:p.scores.slice(0, N),
+  return {n:p.name, c:p.c, av:p.av, em, st:p.st, t0, h:holeIdx, x:Math.round(p.x), y:Math.round(p.y), vx:Math.round(p.vx || 0), vy:Math.round(p.vy || 0), mv:(p.moving || p.drown || p.warp || p.cup) ? 1 : 0, cs:p.strokes, s:p.scores.slice(0, N),
     dh:doneHole, ds:doneSeq, pk, ch, g:amHost && G ? G : null};
 }
 function pub() {
@@ -1745,7 +1748,30 @@ function pub() {
   const j = JSON.stringify(pres()); if (j === lastPub) return; lastPub = j;
   try { nr.presence(JSON.parse(j)).then(() => { if (netErr === 'send') netErr = ''; }).catch(e => { netErr = errCode(e); lastPub = ''; }); } catch (e) { netErr = errCode(e); }
 }
-function setG(ph, hole) { G = {ph, hole, seq:(G ? G.seq : 0) + 1, c:course}; phaseAt = performance.now(); applyG(); pub(); }
+const TURN_TIME = 45;
+let HT = {tn:-1}, turnSeen = -1, turnAt = 0;
+function joinOrder() { return party.slice().sort((a, b) => ((+a.presence.t0 || 0) - (+b.presence.t0 || 0)) || (a.peer < b.peer ? -1 : 1)).map(q => q.peer); }
+function holeOrder() { // set at the start of each hole: most points shoots first, ties go by who joined first
+  const pts2 = q => (q.isMe && q.sameTab) ? tot(players[0].scores) : tot(Array.isArray(q.presence.s) ? q.presence.s : []), jo = joinOrder();
+  return party.slice().sort((a, b) => (pts2(b) - pts2(a)) || (jo.indexOf(a.peer) - jo.indexOf(b.peer))).map(q => q.peer); }
+function turnOrder() { const ord = (G && Array.isArray(G.ord) ? G.ord : []).filter(pid => party.some(q => q.peer === pid)); // the hole's rotation, plus anyone who joined since
+  for (const pid of joinOrder()) if (!ord.includes(pid)) ord.push(pid); return ord; }
+function turnInfo(pid) { // what the host knows about one player's ball this hole
+  const q = party.find(q2 => q2.peer === pid); if (!q || !G) return null;
+  if (q.isMe && q.sameTab) { const me = players[0]; return {done:me.done, cs:me.strokes, mv:!!(me.moving || me.drown || me.warp || me.cup)}; }
+  const pr = q.presence; return {done:pr.dh === G.hole && pr.ds === G.seq, cs:pr.h === G.hole ? (pr.cs | 0) : 0, mv:!!pr.mv};
+}
+function nextShooter(after) { const ord = turnOrder(); if (!ord.length) return null; let i = ord.indexOf(after);
+  for (let k = 1; k <= ord.length; k++) { const pid = ord[(i + k + ord.length) % ord.length], inf = turnInfo(pid); if (inf && !inf.done) return pid; } return null; }
+function myTurn() { return mode !== 'online' || !G || G.ph !== 'play' || !G.turn || G.turn === myPeer; }
+function onTurn() { // everyone: the shooter changed
+  if (!G || turnSeen === G.tn) return; turnSeen = G.tn; turnAt = performance.now();
+  if (G.turn === myPeer) { timeLeft = TURN_TIME; if (!players[0].done) { toast('🏌️ Your turn!'); beep(660, .08, 'triangle', .06); setTimeout(() => beep(880, .1, 'triangle', .06), 90); buzz([15, 40, 15]); } }
+  hud();
+}
+function setG(ph, hole) { G = {ph, hole, seq:(G ? G.seq : 0) + 1, c:course};
+  if (ph === 'play') { G.ord = holeOrder(); G.turn = G.ord[0] || null; G.tn = 1; } // the points leader tees off, and that rotation holds for the whole hole
+  phaseAt = performance.now(); applyG(); pub(); }
 function applyG() {
   gSeq = G.seq; closePicker(); sheetKey = '';
   if (G.c != null && (G.c | 0) !== course) { setCourse(G.c | 0); renderMaps(); } // everyone plays the host's map
@@ -1772,7 +1798,9 @@ function netTick() {
     const g = p.presence.g;
     if (g && typeof g.seq === 'number' && ['lobby','play','scores','final'].includes(g.ph) && (!best || g.seq > best.seq)) best = g;
   }
-  if (best && best.seq > gSeq) { G = {ph:best.ph, hole:best.hole | 0, seq:best.seq, c:best.c | 0}; phaseAt = now; applyG(); }
+  if (best && best.seq > gSeq) { G = {ph:best.ph, hole:best.hole | 0, seq:best.seq, c:best.c | 0, turn:best.turn || null, tn:best.tn | 0, ord:Array.isArray(best.ord) ? best.ord.slice(0, 12) : []}; phaseAt = now; applyG(); }
+  else if (best && G && best.seq === gSeq && (best.tn | 0) > (G.tn | 0)) { G.turn = best.turn || null; G.tn = best.tn | 0; } // same hole, next shooter
+  if (G && G.ph === 'play') onTurn();
   let hp = null;
   for (const p of party) { const t = +p.presence.t0 || 0; if (!hp || t < hp.t || (t === hp.t && p.peer < hp.peer)) hp = {t, peer:p.peer}; }
   amHost = !!hp && hp.peer === myPeer && now - joinedAt > 2500;
@@ -1780,8 +1808,16 @@ function netTick() {
     if (!G) { G = {ph:'lobby', hole:0, seq:1}; phaseAt = now; gSeq = 1; }
     const e = now - phaseAt;
     if (G.ph === 'play') {
+      // turns: one shooter at a time. Move on once their shot has come to rest, they hole out, leave, or sit idle too long
+      if (HT.tn !== G.tn) HT = {tn:G.tn, bs:(turnInfo(G.turn) || {cs:0}).cs, ts:now, rest:0};
+      const ti = G.turn ? turnInfo(G.turn) : null; let adv = !ti || ti.done;
+      if (ti && !adv) { if (ti.cs > HT.bs && !ti.mv) { HT.rest = HT.rest || now; if (now - HT.rest > 800) adv = true; } else HT.rest = 0;
+        if (now - HT.ts > (ti.cs > HT.bs ? 70 : TURN_TIME + 3) * 1000) adv = true; }
+      if (adv) { const nx = nextShooter(G.turn);
+        if (nx && nx !== G.turn) { G.turn = nx; G.tn = (G.tn | 0) + 1; onTurn(); pub(); }
+        else if (nx && ti && !ti.done) HT = {tn:G.tn, bs:ti.cs, ts:now, rest:0}; } // the last player still out keeps shooting
       const allDone = party.every(p => (p.isMe && p.sameTab) ? players[0].done : (p.presence.dh === G.hole && p.presence.ds === G.seq));
-      if ((allDone && e > 1500) || e > (HOLE_TIME + 30 * (HOLES[G.hole].par - 2) + 4) * 1000) setG('scores', G.hole);
+      if ((allDone && e > 1500) || e > (HOLE_TIME + 30 * (HOLES[G.hole].par - 2) + 4) * 1000 * Math.max(1, party.length)) setG('scores', G.hole);
     } else if (G.ph === 'scores' && e > 7000) { if (G.hole + 1 < N) setG('play', G.hole + 1); else setG('final', G.hole); }
   }
   // pranks
@@ -1972,7 +2008,8 @@ function update(dt) {
   if (phase !== 'play') return;
   const p = ap(); if (!p) return;
   for (const q of (mode === 'local' ? players : [p])) if (!q.done && !q.moving && !q.warp && !q.drown && !q.cup && q.last) obstaclePush(q, dt);
-  if (mode === 'online' && !tut) { timeLeft -= dt; if (timeLeft <= 0 && !p.done) { toast("Time's up. No points this hole."); finish(p, 0); } }
+  if (mode === 'online' && !tut && myTurn() && !p.moving && !p.done) timeLeft = Math.max(0, timeLeft - dt); // your shot clock only runs on your turn
+  if (mode === 'online' && p.moving && performance.now() - lastPubT > 70) { lastPubT = performance.now(); pub(); } // send a moving ball often so others can follow it
   if (mode === 'local' && players.length > 1) otherBalls(p, dt);
   if (p.done || (mode === 'local' && lock)) return;
   for (const k of TIMED) if (p.fx[k] > 0) p.fx[k] -= dt;
@@ -2044,7 +2081,7 @@ function aim() {
   const tb = p.fx.turbo > 0;
   return {ux:Math.cos(a), uy:Math.sin(a), pw:Math.max(tb ? .5 : .06, Math.pow(Math.min(len, 150) / 150, 1.25)), mul:(tb ? 2 : 1) * (p.fx.super > 0 ? .5 : 1)};
 }
-function canAim() { const p = ap(); return phase === 'play' && !lock && !tut && intro <= 0 && p && !(p.stunLock > 0) && !p.done && !p.moving; }
+function canAim() { const p = ap(); return phase === 'play' && !lock && !tut && intro <= 0 && p && !(p.stunLock > 0) && !p.done && !p.moving && myTurn(); }
 function shoot(forced) {
   const p = ap(), a = forced || aim(); drag = null; if (!a || !canAim()) return;
   p.prev = {x:p.x, y:p.y}; p.last = {x:p.x, y:p.y}; p.safe = {x:p.x, y:p.y}; p.from = {x:p.x, y:p.y}; p.kimDone = false; p.blast = false;
@@ -2820,7 +2857,10 @@ function draw() {
     for (const q of party) {
       if ((q.isMe && q.sameTab) || q.presence.h !== holeIdx || (q.presence.dh === holeIdx && q.presence.ds === gSeq)) continue;
       const tx = +q.presence.x || c.tee[0], ty = +q.presence.y || c.tee[1];
-      const gh = ghosts[q.peer] || (ghosts[q.peer] = {x:tx, y:ty}); gh.x += (tx - gh.x) * .25; gh.y += (ty - gh.y) * .25;
+      const gh = ghosts[q.peer] || (ghosts[q.peer] = {x:tx, y:ty, px:tx, py:ty, rt:performance.now()});
+      if (tx !== gh.px || ty !== gh.py) { gh.px = tx; gh.py = ty; gh.rt = performance.now(); }
+      const age = q.presence.mv ? Math.min(.25, (performance.now() - gh.rt) / 1000) * .56 : 0, ex = tx + (+q.presence.vx || 0) * age, ey = ty + (+q.presence.vy || 0) * age;
+      gh.mv = !!q.presence.mv; gh.x += (ex - gh.x) * .3; gh.y += (ey - gh.y) * .3;
       putBall(q.peer, gh.x, gh.y, (q.presence.c | 0) % 8, .75, q.presence.av | 0, clean(q.presence.n), gh.em, false);
     }
   }
@@ -2871,15 +2911,18 @@ function draw() {
   // camera sits behind and above the ball, looking up the course
   let bx = p ? p.x : c.tee[0], by = p ? p.y : c.tee[1];
   if (p && p.done && sinks.length) { bx = c.hole[0]; by = c.hole[1] + 30; }
+  let watchRoll = null; // online: follow whoever is shooting
+  if (mode === 'online' && phase === 'play' && G && G.turn && G.turn !== myPeer && ghosts[G.turn] && !(sinks.length && performance.now() - turnAt < 1200)) { bx = ghosts[G.turn].x; by = ghosts[G.turn].y; watchRoll = !!ghosts[G.turn].mv; }
   const fe = 0; // the hole intro is its own flyover now, see flyPose
   bx += (c.hole[0] - bx) * fe; by += (c.hole[1] + 30 - by) * fe;
   const hf = 2 * Math.atan(Math.tan(cam.fov * Math.PI / 360) * cam.aspect);
   const aiming = !!(drag && canAim());
   if (dyn.fitA !== cam.aspect) fitCam(); const fit = dyn.fit, BB = dyn.bb, ccx = (BB.x0 + BB.x1) / 2;
-  const rolling = !!(p && p.moving && !p.done && !p.drown);
+  const rolling = watchRoll != null ? watchRoll : !!(p && p.moving && !p.done && !p.drown);
   let want, tx, tz, fX = 0, fZ = -1;
   if (camMode === 1 || fe > 0 || !p) { want = fit; tx = ccx; tz = dyn.fitZ; }       // whole course from above
   else {
+    if (watchRoll != null && camWho !== G.turn) { camWho = G.turn; camAim = null; } else if (watchRoll == null && camWho) { camWho = null; camAim = null; }
     const lp = rolling && camAim ? c.hole : lookPoint(c, bx, by), hx = lp[0] - bx, hz = lp[1] - by, hd = Math.hypot(hx, hz) || 1;
     if (!camAim || (!rolling && hd > 6)) camAim = {x:hx / hd, z:hz / hd, d:hd};      // ball at rest: swing round to face the cup
     fX = camAim.x; fZ = camAim.z;
@@ -2928,7 +2971,10 @@ function hud() {
   cnt('hHole', '🚩', (holeIdx + 1) + '/' + N); cnt('hStroke', '', p.strokes + '/' + maxS());
   const t = $('hTime'); t.classList.toggle('hidden', mode !== 'online');
   $('chatBtn').classList.toggle('hidden', mode !== 'online');
-  const s = Math.max(0, Math.ceil(timeLeft)); t.textContent = '⏱ ' + s; t.classList.toggle('low', s <= 15);
+  const s = Math.max(0, Math.ceil(timeLeft)); t.textContent = '⏱ ' + s; t.classList.toggle('low', s <= 15); t.classList.toggle('hidden', mode !== 'online' || !myTurn() || p.done);
+  if (mode === 'online' && phase === 'play' && G && G.turn) { const sh = party.find(q => q.peer === G.turn), bn = $('banner');
+    if (G.turn === myPeer) { if (!p.done) { bn.textContent = p.moving ? '' : 'Your turn'; bn.style.color = COLORS[p.c]; } }
+    else if (sh) { bn.textContent = clean(sh.presence.n) + "'s turn"; bn.style.color = COLORS[(sh.presence.c | 0) % 8]; } }
   for (let i = 0; i < 3; i++) {
     const b = $('slot' + i), k = p.items[i], it = k && ITEMS[k];
     const rolling = it && p.roll && p.roll.slot === i;
@@ -2954,7 +3000,7 @@ function hud() {
   else party.forEach(q => {
     const me = q.isMe && q.sameTab, done = me ? p.done : (q.presence.dh === holeIdx && q.presence.ds === gSeq);
     const sc = me ? p.scores : (Array.isArray(q.presence.s) ? q.presence.s : []);
-    add(me ? 'You' : clean(q.presence.n), (q.presence.c | 0) % 8, (done ? '✓ ' : '') + (tot(sc) + (me ? p.hb : 0)), me, me ? p.av : q.presence.av | 0, me ? faceNow(p) : faceNow(ghosts[q.peer]));
+    add(me ? 'You' : clean(q.presence.n), (q.presence.c | 0) % 8, (done ? '✓ ' : '') + (tot(sc) + (me ? p.hb : 0)), G && G.ph === 'play' && G.turn ? q.peer === G.turn : me, me ? p.av : q.presence.av | 0, me ? faceNow(p) : faceNow(ghosts[q.peer]));
   });
 }
 
