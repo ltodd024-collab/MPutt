@@ -2709,7 +2709,7 @@ function flyPose(c, u) { // camera position and look point for the hole intro, u
   const s = ez((u - .34) / .66), P = at(1 - s), gh = gAvg((1 - s) * tot); // ground height averaged along the way, so ramps and pits don't bump the camera
   return [P[0] - P[2] * 130, gh + 150, P[1] - P[3] * 130, P[0] + P[2] * 50, gh, P[1] + P[3] * 50];
 }
-const FLY = {on:false, p:null, l:null, t:0};
+const FLY = {on:false, p:null, l:null, t:0, out:null};
 function lookPoint(c, x, y) { // where the camera should face: the cup if there is a clear line to it, otherwise the furthest stretch of the route AHEAD that is in view
   const big = []; for (const r of c.blocks) if (Math.max(r[2], r[3]) > 70) big.push(...rectSegs(r)); // only the rail and long dividing walls hide the route
   const clear = q => ![c.segs, big, c.wsegs].some(L => L.some(s => segHit(x, y, q[0], q[1], s)));
@@ -2901,6 +2901,8 @@ function draw() {
     FLY.t = nowT; const fp = FLY.p.concat(FLY.l);
     const lx = camT.x + (fp[3] - camT.x) * k, ly = fp[4] * k, lz = camT.z + (fp[5] - camT.z) * k;
     cam.position.set(cam.position.x + (fp[0] - cam.position.x) * k, cam.position.y + (fp[1] - cam.position.y) * k, cam.position.z + (fp[2] - cam.position.z) * k); cam.lookAt(lx, ly, lz); }
+  if (FLY.out) { const el2 = (performance.now() - FLY.out.t0) / 380; if (el2 >= 1 || intro > .7) FLY.out = null; else { const k = 1 - el2 * el2 * (3 - 2 * el2), qn = cam.quaternion.clone(); // skipping the flyover glides into place instead of cutting
+      cam.position.lerp(FLY.out.p, k); cam.quaternion.copy(FLY.out.q).slerp(qn, 1 - k); } }
   R.render(scene, cam);
   // screen-space overlay: confetti, ink, flour
   const k = cv.width / sw; ctx.setTransform(k, 0, 0, k, 0, 0); ctx.clearRect(0, 0, sw, sh);
@@ -2958,7 +2960,8 @@ function hud() {
 
 /* ---------- input ---------- */
 function pos(e) { const r = cv.getBoundingClientRect(); return {x:e.clientX - r.left, y:e.clientY - r.top}; }
-cv.addEventListener('pointerdown', e => { wakeAudio(); if (phase === 'play' && !tut && intro > .75) { intro = .75; return; } if (!canAim()) return; const q = pos(e); drag = {sx:q.x, sy:q.y, cx:q.x, cy:q.y}; clearKimForAim(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
+cv.addEventListener('pointerdown', e => { wakeAudio(); if (phase === 'play' && !tut && intro > 0) { if (intro > .7 && cam) FLY.out = {p:cam.position.clone(), q:cam.quaternion.clone(), t0:performance.now()}; intro = 0; } // a touch ends the intro or the pause after a drop, and the same touch starts aiming
+  if (!canAim()) return; const q = pos(e); drag = {sx:q.x, sy:q.y, cx:q.x, cy:q.y}; clearKimForAim(); try { cv.setPointerCapture(e.pointerId); } catch (x) {} e.preventDefault(); });
 cv.addEventListener('pointermove', e => { if (!drag) return; const q = pos(e); drag.cx = q.x; drag.cy = q.y; });
 cv.addEventListener('pointerup', () => { if (drag) shoot(null); });
 cv.addEventListener('pointercancel', () => { drag = null; });
