@@ -1030,8 +1030,8 @@ function build(i) {
     mole:d.mole ? {x:0, y:0, st:0, t:2, i:0, dir:1, burrows:(d.burrows || []).map(q => ({x:q[0], y:q[1]}))} : null,
     glass:(() => { const gl = d.glass || [], rg = rnd(glassSeed + i * 77 + 1), safe = rg() > .5 ? 0 : 1, br = Math.floor(rg() * (gl.length / 2)); // one column is safe, the other hides a pane that shatters
       return gl.map((r, k) => ({r, st:0, in:false, kind:k % 2 === safe ? (rg() > .5 ? 'hold' : 'crack') : (Math.floor(k / 2) === br ? 'break' : rg() > .5 ? 'hold' : 'crack')})); })(), damp:d.damp || [], doors:(d.doors || []).map(q => ({ax:q[0], ay:q[1], bx:q[2], by:q[3], dx:q[4], dy:q[5], cd:0})), movers:d.movers || [], bumpers:(d.bumpers || []).map(b => ({x:b[0],y:b[1],r:b[2],hit:0,pin:!!b[3]})),
-    boxes:(d.boxes || []).map(b => ({x:b[0],y:b[1],cd:0})),
-    bags:(d.bags || []).map(b => ({x:b[0],y:b[1],cd:0}))};
+    boxes:(d.boxes || []).filter(b => Math.hypot(b[0] - d.tee[0], b[1] - d.tee[1]) > 110).map(b => ({x:b[0],y:b[1],cd:0})),
+    bags:(d.bags || []).filter(b => Math.hypot(b[0] - d.tee[0], b[1] - d.tee[1]) > 110).map(b => ({x:b[0],y:b[1],cd:0}))};
 }
 const inR = (p, r) => p.x > r[0] && p.x < r[0] + r[2] && p.y > r[1] && p.y < r[1] + r[3];
 function inPoly(p, poly) {
@@ -1257,10 +1257,10 @@ function stepBall(p, dt, sim) {
       if (dr.dx != null) { const sp = Math.hypot(p.vx, p.vy) * .8; p.vx = p.ux = dr.dx * sp; p.vy = p.uy = dr.dy * sp; } /* some portals point the ball a set way when it comes out */ trail.length = 0; if (!sim) SFX.warp(); buzz(15); break;
     }
     if (!inPoly(p, c.d.poly) || (c.isles.length && c.isles.some(P2 => inPoly(p, P2)))) { if (p.air > 0) p.flew = true; else { p.flew = true; return 'oob'; } } // over the rail or into a planter // a ball that clears the rail keeps flying and lands outside
-    for (const b of c.boxes) if (b.cd <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < 9.5 + BR) { // anywhere the ball touches the glowing ring counts
+    if (!sim) for (const b of c.boxes) if (b.cd <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < 9.5 + BR) { // anywhere the ball touches the glowing ring counts
       if (p.items.length < 3) { b.cd = 12; giveItem(p, true); }
       else if (!sim && !(b.fullT > T)) { b.fullT = T + 3; rings.push({x:b.x, y:b.y, t:.4, c:0xff5d8f, max:22}); beep(180, .08, 'square', .04); toast('Your 3 item slots are full. Use one to grab more'); } }
-    if (!soloGame()) for (const b of c.bags) if (b.cd <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < 9 && p.items.length < 3) { b.cd = 15; p.items.push('kbag'); p.st.col++; addPts(p, 25, 'Prank grabbed'); puff(b.x, b.y); itemIntro(p, 'kbag'); beep(880, .12, 'sine', .05); hud(); }
+    if (!sim && !soloGame()) for (const b of c.bags) if (b.cd <= 0 && Math.hypot(b.x - p.x, b.y - p.y) < 9 && p.items.length < 3) { b.cd = 15; p.items.push('kbag'); p.st.col++; addPts(p, 25, 'Prank grabbed'); puff(b.x, b.y); itemIntro(p, 'kbag'); beep(880, .12, 'sine', .05); hud(); }
   }
   return null;
 }
@@ -1763,7 +1763,8 @@ function turnInfo(pid) { // what the host knows about one player's ball this hol
 }
 function nextShooter(after) { const ord = turnOrder(); if (!ord.length) return null; let i = ord.indexOf(after);
   for (let k = 1; k <= ord.length; k++) { const pid = ord[(i + k + ord.length) % ord.length], inf = turnInfo(pid); if (inf && !inf.done) return pid; } return null; }
-function myTurn() { return mode !== 'online' || !G || G.ph !== 'play' || !G.turn || G.turn === myPeer; }
+let shotTn = -1;
+function myTurn() { return mode !== 'online' || !G || G.ph !== 'play' || !G.turn || (G.turn === myPeer && shotTn !== G.tn); } // one shot, then wait for the next turn
 function onTurn() { // everyone: the shooter changed
   if (!G || turnSeen === G.tn) return; turnSeen = G.tn; turnAt = performance.now();
   if (G.turn === myPeer) { timeLeft = TURN_TIME; if (!players[0].done) { toast('🏌️ Your turn!'); beep(660, .08, 'triangle', .06); setTimeout(() => beep(880, .1, 'triangle', .06), 90); buzz([15, 40, 15]); } }
@@ -1815,7 +1816,7 @@ function netTick() {
         if (now - HT.ts > (ti.cs > HT.bs ? 70 : TURN_TIME + 3) * 1000) adv = true; }
       if (adv) { const nx = nextShooter(G.turn);
         if (nx && nx !== G.turn) { G.turn = nx; G.tn = (G.tn | 0) + 1; onTurn(); pub(); }
-        else if (nx && ti && !ti.done) HT = {tn:G.tn, bs:ti.cs, ts:now, rest:0}; } // the last player still out keeps shooting
+        else if (nx && ti && !ti.done && ti.cs > HT.bs) { G.tn = (G.tn | 0) + 1; onTurn(); pub(); } } // the last player still out gets another turn
       const allDone = party.every(p => (p.isMe && p.sameTab) ? players[0].done : (p.presence.dh === G.hole && p.presence.ds === G.seq));
       if ((allDone && e > 1500) || e > (HOLE_TIME + 30 * (HOLES[G.hole].par - 2) + 4) * 1000 * Math.max(1, party.length)) setG('scores', G.hole);
     } else if (G.ph === 'scores' && e > 7000) { if (G.hole + 1 < N) setG('play', G.hole + 1); else setG('final', G.hole); }
@@ -2007,6 +2008,7 @@ function update(dt) {
   for (const b of cur.bags) if (b.cd > 0) b.cd -= dt;
   if (phase !== 'play') return;
   const p = ap(); if (!p) return;
+  if (mode === 'online') for (const k in ghosts) { const sb = ghosts[k].sb; if (sb && (sb.vx || sb.vy)) { const r = stepBall(sb, dt, true); if (r) ghosts[k].sb = null; } }
   for (const q of (mode === 'local' ? players : [p])) if (!q.done && !q.moving && !q.warp && !q.drown && !q.cup && q.last) obstaclePush(q, dt);
   if (mode === 'online' && !tut && myTurn() && !p.moving && !p.done) timeLeft = Math.max(0, timeLeft - dt); // your shot clock only runs on your turn
   if (mode === 'online' && p.moving && performance.now() - lastPubT > 70) { lastPubT = performance.now(); pub(); } // send a moving ball often so others can follow it
@@ -2084,6 +2086,7 @@ function aim() {
 function canAim() { const p = ap(); return phase === 'play' && !lock && !tut && intro <= 0 && p && !(p.stunLock > 0) && !p.done && !p.moving && myTurn(); }
 function shoot(forced) {
   const p = ap(), a = forced || aim(); drag = null; if (!a || !canAim()) return;
+  if (mode === 'online' && G) shotTn = G.tn;
   p.prev = {x:p.x, y:p.y}; p.last = {x:p.x, y:p.y}; p.safe = {x:p.x, y:p.y}; p.from = {x:p.x, y:p.y}; p.kimDone = false; p.blast = false;
   p.vx = a.ux * a.pw * VMAX * a.mul; p.vy = a.uy * a.pw * VMAX * a.mul; p.ux = p.vx; p.uy = p.vy; p.air = 0; p.vz = 0; p.skips = 0; p.flew = false; p.fx.barrier = 0; if (p.fx.super > 0) p.fx.super = 0; if (p.fx.boom > 0) { p.fx.boom = 0; p.boomArmed = true; } p.fx.clock = 0; decoys.forEach(q => { if (q.owner === p) q.age++; }); p.moving = true; p.shot = true; p.strokes++;
   if (p.fx.magnet > 0) { p.fx.magnet = 0; p.aMagnet = true; }
@@ -2858,9 +2861,13 @@ function draw() {
       if ((q.isMe && q.sameTab) || q.presence.h !== holeIdx || (q.presence.dh === holeIdx && q.presence.ds === gSeq)) continue;
       const tx = +q.presence.x || c.tee[0], ty = +q.presence.y || c.tee[1];
       const gh = ghosts[q.peer] || (ghosts[q.peer] = {x:tx, y:ty, px:tx, py:ty, rt:performance.now()});
-      if (tx !== gh.px || ty !== gh.py) { gh.px = tx; gh.py = ty; gh.rt = performance.now(); }
-      const age = q.presence.mv ? Math.min(.25, (performance.now() - gh.rt) / 1000) * .56 : 0, ex = tx + (+q.presence.vx || 0) * age, ey = ty + (+q.presence.vy || 0) * age;
-      gh.mv = !!q.presence.mv; gh.x += (ex - gh.x) * .3; gh.y += (ey - gh.y) * .3;
+      if (tx !== gh.px || ty !== gh.py) { gh.px = tx; gh.py = ty; gh.rt = performance.now(); gh.nw = 1; }
+      const mvNow = !!q.presence.mv, fresh = gh.nw || gh.lastMv !== mvNow; gh.lastMv = mvNow; gh.nw = 0;
+      if (mvNow && fresh) { const sb = gh.sb || (gh.sb = {x:tx, y:ty, vx:0, vy:0, ux:0, uy:0, air:0, vz:0, fx:{}, aGhost:false, aMagnet:false, items:[]});
+        sb.x += (tx - sb.x) * .6; sb.y += (ty - sb.y) * .6; sb.vx = sb.ux = +q.presence.vx || 0; sb.vy = sb.uy = +q.presence.vy || 0; } // nudge the local copy toward what the shooter reports
+      if (!mvNow) gh.sb = null;
+      const ex = gh.sb ? gh.sb.x : tx, ey = gh.sb ? gh.sb.y : ty;
+      gh.mv = mvNow; gh.x += (ex - gh.x) * .35; gh.y += (ey - gh.y) * .35;
       putBall(q.peer, gh.x, gh.y, (q.presence.c | 0) % 8, .75, q.presence.av | 0, clean(q.presence.n), gh.em, false);
     }
   }
@@ -2973,7 +2980,7 @@ function hud() {
   $('chatBtn').classList.toggle('hidden', mode !== 'online');
   const s = Math.max(0, Math.ceil(timeLeft)); t.textContent = '⏱ ' + s; t.classList.toggle('low', s <= 15); t.classList.toggle('hidden', mode !== 'online' || !myTurn() || p.done);
   if (mode === 'online' && phase === 'play' && G && G.turn) { const sh = party.find(q => q.peer === G.turn), bn = $('banner');
-    if (G.turn === myPeer) { if (!p.done) { bn.textContent = p.moving ? '' : 'Your turn'; bn.style.color = COLORS[p.c]; } }
+    if (G.turn === myPeer) { if (!p.done) { bn.textContent = p.moving ? '' : shotTn === G.tn ? 'Nice. Next player up...' : 'Your turn'; bn.style.color = COLORS[p.c]; } }
     else if (sh) { bn.textContent = clean(sh.presence.n) + "'s turn"; bn.style.color = COLORS[(sh.presence.c | 0) % 8]; } }
   for (let i = 0; i < 3; i++) {
     const b = $('slot' + i), k = p.items[i], it = k && ITEMS[k];
