@@ -1111,7 +1111,9 @@ function stepBall(p, dt, sim) {
   for (let i = 0; i < n; i++) {
     const ghost = p.aGhost, fly = p.air > 0;
     if (!sim && p.fx.tornado > 0) { const a = T * 6 + p.seed; p.vx += Math.cos(a) * 420 * h; p.vy += Math.sin(a) * 420 * h; }
-    if (!ghost && !fly) { for (const b of c.boost) if (inR(p, b)) { p.vx += b[4] * 520 * h; p.vy += b[5] * 520 * h; } for (const b of c.damp) if (inR(p, b)) { p.vx += (b[4] || 0) * 380 * h; p.vy += (b[5] == null ? 1 : b[5]) * 380 * h; } }
+    if (!ghost && !fly) { for (const b of c.boost) if (inR(p, b)) { const dx = b[4], dy = b[5], kk = Math.max(0, 1 - 7 * h); // chevrons steer the ball their way as well as speeding it up
+        for (const [ax, ay] of [['vx', 'vy'], ['ux', 'uy']]) { const vp = p[ax] * dx + p[ay] * dy, sx = p[ax] - vp * dx, sy = p[ay] - vp * dy; p[ax] = dx * vp + sx * kk; p[ay] = dy * vp + sy * kk; }
+        p.vx += dx * 640 * h; p.vy += dy * 640 * h; p.ux += dx * 640 * h; p.uy += dy * 640 * h; } for (const b of c.damp) if (inR(p, b)) { p.vx += (b[4] || 0) * 380 * h; p.vy += (b[5] == null ? 1 : b[5]) * 380 * h; } }
     const hr = holeR(p);
     let dx = c.hole[0] - p.x, dy = c.hole[1] - p.y, d = Math.hypot(dx, dy) || 1;
     if (p.aMagnet && d < 110 && d >= hr) { p.vx += dx / d * 480 * h; p.vy += dy / d * 480 * h; p.vx *= 1 - 2.5 * h; p.vy *= 1 - 2.5 * h; }
@@ -2711,11 +2713,12 @@ const FLY = {on:false, p:null, l:null, t:0};
 function lookPoint(c, x, y) { // where the camera should face: the cup if there is a clear line to it, otherwise the furthest stretch of the route AHEAD that is in view
   const big = []; for (const r of c.blocks) if (Math.max(r[2], r[3]) > 70) big.push(...rectSegs(r)); // only the rail and long dividing walls hide the route
   const clear = q => ![c.segs, big, c.wsegs].some(L => L.some(s => segHit(x, y, q[0], q[1], s)));
+  const railClear = q => ![c.segs, big].some(L => L.some(s => segHit(x, y, q[0], q[1], s))); // for working out which leg the ball is on: planters in a fork don't count, only the rails between legs
   if (clear(c.hole)) return c.hole;
   const R2 = routeOf(c); let best = 0, bd = 1e9;
   for (let i = 0; i < R2.length - 1; i++) { // which stretch of the route the ball is on (nearest one it can actually see)
     const a = R2[i], b = R2[i + 1], dx = b[0] - a[0], dy = b[1] - a[1]; let t = ((x - a[0]) * dx + (y - a[1]) * dy) / (dx * dx + dy * dy || 1); t = t < 0 ? 0 : t > 1 ? 1 : t;
-    const px = a[0] + dx * t, py = a[1] + dy * t; let d = Math.hypot(x - px, y - py); if (d > 2 && !clear([px, py])) d += 400;
+    const px = a[0] + dx * t, py = a[1] + dy * t; let d = Math.hypot(x - px, y - py); if (d > 2 && !railClear([px, py])) d += 400;
     if (d < bd) { bd = d; best = i; } }
   for (let i = R2.length - 1; i > best; i--) if (Math.hypot(R2[i][0] - x, R2[i][1] - y) > 30 && clear(R2[i])) return R2[i];
   for (let i = best + 1; i < R2.length; i++) if (Math.hypot(R2[i][0] - x, R2[i][1] - y) > 30) return R2[i];
@@ -2886,7 +2889,7 @@ function draw() {
   }
   if (zoomT > 0 || (p && p.done && sinks.length)) { want = Math.min(want, 240); tx = c.hole[0] - fX * 10; tz = c.hole[1] - fZ * 10; }
   camD = camD ? camD + (want - camD) * .05 : want; const dist = camD; kz = Math.max(1, Math.min(3.4, dist / 290));
-  if (!camT || fe > .98) camT = {x:tx, z:tz}; camT.x += (tx - camT.x) * .06; camT.z += (tz - camT.z) * .06;
+  if (!camT || fe > .98) { camT = {x:tx, z:tz}; camF = {x:fX, z:fZ}; } // a new hole starts facing the right way instead of swinging round from the last one camT.x += (tx - camT.x) * .06; camT.z += (tz - camT.z) * .06;
   { const ca = Math.atan2(camF.x, -camF.z); let da = Math.atan2(fX, -fZ) - ca; while (da > Math.PI) da -= 6.2832; while (da < -Math.PI) da += 6.2832; const na = ca + da * .07; camF = {x:Math.sin(na), z:-Math.cos(na)}; }
   const jit = (shake > 0 || (p && (p.fx.quake > 0 || p.fx.flour > 0) && phase === 'play')) ? 7 : 0;
   cam.position.set(camT.x - camF.x * dist * .714 + (Math.random() - .5) * jit, dist * .7 + (Math.random() - .5) * jit, camT.z - camF.z * dist * .714);
