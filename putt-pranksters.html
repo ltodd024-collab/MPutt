@@ -274,7 +274,7 @@ tr.me td{color:var(--sun)}
   <section id="who" class="screen pad">
     <div class="brand">
       <h1>Putt <span>Pranksters</span></h1>
-      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 22 · force field shield</div>
+      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 23 · shield until your turn</div>
       <p>Six maps of six holes each with dirty tricks, with Kim heckling from the sidelines, ending at his car service in St. Martin. Pick your putter first.</p>
     </div>
     <div class="card">
@@ -589,7 +589,7 @@ const ITEMS = {
   tiny:{e:'🤏',n:'Tiny Cup',prank:1,d:"shrinks a rival's cup"},
   bomb:{e:'💣',n:'Bomb',prank:1,d:"blasts a rival's ball"},
   kbag:{e:'🧂',n:"Kim's Special Bag",prank:1,d:"sea salt and flour, makes a rival's aim wander and their screen shake"},
-  shield:{e:'🛡️',n:'Shield',d:'a blue force field for 20s: shoves nearby balls away, bounces balls off and blocks pranks'},
+  shield:{e:'🛡️',n:'Shield',d:'a blue force field until your next turn: shoves nearby balls away, bounces balls off and blocks pranks'},
   barrier:{e:'🧱',n:'Barrier',d:'nothing can move or prank your ball until your next shot'},
   boom:{e:'🧨',n:'Boom Ball',d:'your next shot explodes where it stops, blasting and stunning nearby rivals'},
   super:{e:'🐘',n:'Supersizer',prank:1,all:1,d:"makes every rival's ball big, heavy and slow for a shot"},
@@ -602,8 +602,8 @@ const ITEMS = {
 const PRANKS = Object.keys(ITEMS).filter(k => ITEMS[k].prank);
 const POWERS = Object.keys(ITEMS).filter(k => !ITEMS[k].prank);
 const RANDP = PRANKS.filter(k => k !== 'kbag');
-const TIMED = ['ice','flip','quake','ink','tiny','big','tornado','flour','turbo','stun','shield'];
-const SHIELD_R = BR * 4, SHIELD_T = 20; /* force field radius and how long it stays up */
+const TIMED = ['ice','flip','quake','ink','tiny','big','tornado','flour','turbo','stun'];
+const SHIELD_R = BR * 4; /* force field radius: it stays up until its owner's next turn */
 const R4 = [[40,40],[320,40],[320,500],[40,500]];
 const EX = 1, VX = 2.5; // physics uses real heights; hills, tiers and ridges are drawn VX times taller so they read clearly (jump ramps are drawn true)
 const HOLES = [
@@ -1319,7 +1319,7 @@ function useItem(slot) {
     if (mode === 'online') { pk.push({i:++pkSeq, to:'*', k:'portal', ax:a.x | 0, ay:a.y | 0, bx:b.x | 0, by:b.y | 0}); pk = pk.slice(-5); pub(); }
   } else if (k === 'magnet') p.fx.magnet = 1;
   else if (k === 'laser') p.fx.laser = 2;
-  else if (k === 'shield') { p.fx.shield = SHIELD_T; p.shHit = 1; rings.push({x:p.x, y:p.y, t:.6, c:0x4cc9f0, max:SHIELD_R * 2.2}); beep(520, .25, 'sine', .05); setTimeout(() => beep(780, .2, 'sine', .04), 90); if (mode === 'online') pub(); }
+  else if (k === 'shield') { p.fx.shield = 1; p.shHit = 1; rings.push({x:p.x, y:p.y, t:.6, c:0x4cc9f0, max:SHIELD_R * 2.2}); beep(520, .25, 'sine', .05); setTimeout(() => beep(780, .2, 'sine', .04), 90); if (mode === 'online') pub(); }
   else if (k === 'barrier') p.fx.barrier = 1;
   else if (k === 'boom') p.fx.boom = 1;
   else if (k === 'big') p.fx.big = 12;
@@ -1460,6 +1460,7 @@ function nextTurn() { // pass and play: same rule as online, the points leader t
 }
 function beginTurn() {
   const p = players[turn];
+  if (p.fx.shield > 0) { p.fx.shield = 0; toast('🛡️ ' + p.name + "'s force field is down"); } // it lasts until its owner has to shoot again
   $('banner').textContent = players.length > 1 ? p.name + "'s turn" : '';
   $('banner').style.color = COLORS[p.c];
   decoys = decoys.filter(d2 => !(d2.owner === p && d2.age >= 1)); // duplicates last one full round
@@ -1574,7 +1575,7 @@ function finish(p, score) {
   p.drown = null;
   decoys = decoys.filter(q => q.owner !== p);
   p.done = true; setTimeout(() => kimFlush(p), 1500); p.moving = false; p.vx = p.vy = p.ux = p.uy = 0; p.shot = false; p.scores[holeIdx] = score + (p.hb || 0); p.hb = 0;
-  for (const k of TIMED) p.fx[k] = 0; p.fx.bomb = 0; drag = null;
+  for (const k of TIMED) p.fx[k] = 0; p.fx.bomb = 0; p.fx.shield = 0; drag = null;
   if (mode === 'online') { doneHole = holeIdx; doneSeq = gSeq; pub(); $('banner').textContent = 'In the cup. Prank the stragglers.'; $('banner').style.color = COLORS[p.c]; }
   else if (p === ap()) queueNext();
   hud();
@@ -1769,6 +1770,7 @@ let shotTn = -1;
 function myTurn() { return mode !== 'online' || !G || G.ph !== 'play' || !G.turn || (G.turn === myPeer && shotTn !== G.tn); } // one shot, then wait for the next turn
 function onTurn() { // everyone: the shooter changed
   if (!G || turnSeen === G.tn) return; turnSeen = G.tn; turnAt = performance.now();
+  if (G.turn === myPeer && players[0].fx.shield > 0) { players[0].fx.shield = 0; toast('🛡️ Your force field is down'); pub(); } // it lasts until you have to shoot again
   if (G.turn === myPeer) { timeLeft = TURN_TIME; if (!players[0].done) { toast('🏌️ Your turn!'); beep(660, .08, 'triangle', .06); setTimeout(() => beep(880, .1, 'triangle', .06), 90); buzz([15, 40, 15]); } }
   hud();
 }
@@ -2959,8 +2961,8 @@ function draw() {
   { // force fields round any shielded ball
     const fl = [];
     if (phase === 'play') {
-      if (mode === 'local') players.forEach((q, i) => { if (!q.done && q.fx.shield > 0) fl.push({x:i === turn ? q.x : IX(q), y:i === turn ? q.y : IY(q), t:q.fx.shield, o:q}); });
-      else { const me = players[0]; if (me && !me.done && me.fx.shield > 0) fl.push({x:me.x, y:me.y, t:me.fx.shield, o:me});
+      if (mode === 'local') players.forEach((q, i) => { if (!q.done && q.fx.shield > 0) fl.push({x:i === turn ? q.x : IX(q), y:i === turn ? q.y : IY(q), t:9, o:q}); });
+      else { const me = players[0]; if (me && !me.done && me.fx.shield > 0) fl.push({x:me.x, y:me.y, t:9, o:me});
         for (const r of party) { if ((r.isMe && r.sameTab) || !r.presence.sh || r.presence.h !== holeIdx || (r.presence.dh === holeIdx && r.presence.ds === gSeq)) continue; const gq = ghosts[r.peer]; if (gq) fl.push({x:gq.x, y:gq.y, t:9, o:gq}); } }
     }
     dyn.fields.forEach((f, i) => { const q = fl[i]; f.visible = !!q; if (!q) return;
@@ -3060,7 +3062,7 @@ function hud() {
   if (p.fx.flour > 0) f.push('🧂 ' + Math.ceil(p.fx.flour) + 's');
   if (p.fx.barrier > 0) f.push('🧱 until you shoot'); if (p.fx.boom > 0) f.push('🧨 next shot'); if (p.fx.super > 0) f.push('🐘 next shot');
   if (p.fx.magnet > 0) f.push('🧲 next shot');
-  if (p.fx.laser > 0) f.push('🎯 ×' + p.fx.laser); if (p.fx.shield > 0) f.push('🛡️ ' + Math.ceil(p.fx.shield) + 's');
+  if (p.fx.laser > 0) f.push('🎯 ×' + p.fx.laser); if (p.fx.shield > 0) f.push('🛡️ on');
   $('fx').textContent = f.join('   ');
   const strip = $('strip'); strip.textContent = '';
   const lead = (() => { let best = -1, n = 0; if (mode === 'local') players.forEach(q => { const t2 = tot(q.scores) + q.hb; if (t2 > best) { best = t2; n = 1; } else if (t2 === best) n++; }); return n === 1 && best > 0 ? best : -1; })();
