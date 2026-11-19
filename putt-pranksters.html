@@ -2950,7 +2950,8 @@ function draw() {
   }
   if (zoomT > 0 || (p && p.done && sinks.length)) { want = Math.min(want, 240); tx = c.hole[0] - fX * 10; tz = c.hole[1] - fZ * 10; }
   camD = camD ? camD + (want - camD) * .05 : want; const dist = camD; kz = Math.max(1, Math.min(3.4, dist / 290));
-  if (!camT || fe > .98) { camT = {x:tx, z:tz}; camF = {x:fX, z:fZ}; } // a new hole starts facing the right way instead of swinging round from the last one camT.x += (tx - camT.x) * .06; camT.z += (tz - camT.z) * .06;
+  if (!camT || fe > .98) { camT = {x:tx, z:tz}; camF = {x:fX, z:fZ}; } /* a new hole starts facing the right way instead of swinging round from the last one */
+  { const fk = rolling ? .14 : .06; camT.x += (tx - camT.x) * fk; camT.z += (tz - camT.z) * fk; } /* follow the ball; tighter while it rolls */
   { const ca = Math.atan2(camF.x, -camF.z); let da = Math.atan2(fX, -fZ) - ca; while (da > Math.PI) da -= 6.2832; while (da < -Math.PI) da += 6.2832; const na = ca + da * .07; camF = {x:Math.sin(na), z:-Math.cos(na)}; }
   const jit = (shake > 0 || (p && (p.fx.quake > 0 || p.fx.flour > 0) && phase === 'play')) ? 7 : 0;
   cam.position.set(camT.x - camF.x * dist * .714 + (Math.random() - .5) * jit, dist * .7 + (Math.random() - .5) * jit, camT.z - camF.z * dist * .714);
