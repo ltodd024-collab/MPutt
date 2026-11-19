@@ -274,7 +274,7 @@ tr.me td{color:var(--sun)}
   <section id="who" class="screen pad">
     <div class="brand">
       <h1>Putt <span>Pranksters</span></h1>
-      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 20 · camera hand-off fix</div>
+      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 21 · score fix</div>
       <p>Six maps of six holes each with dirty tricks, with Kim heckling from the sidelines, ending at his car service in St. Martin. Pick your putter first.</p>
     </div>
     <div class="card">
@@ -1788,7 +1788,9 @@ function applyG() {
     p.done = true; p.moving = false; show('game'); showScores(G.ph === 'final'); pub();
   } else { phase = 'lobby'; $('sheet').classList.add('hidden'); show('lobby'); renderLobby(); }
 }
-function netTick() {
+let inTick = false;
+function netTick() { if (inTick) return; inTick = true; try { netTick0(); } finally { inTick = false; } } /* publishing can call back into this; never run it twice at once */
+function netTick0() {
   if (!nr || mode !== 'online') return;
   let all; try { all = nr.peers(); } catch (e) { return; }
   const meP = all.find(p => p.isMe && p.sameTab); if (meP) myPeer = meP.peer;
@@ -1828,8 +1830,9 @@ function netTick() {
     const list = Array.isArray(p.presence.pk) ? p.presence.pk : [];
     let mx = 0; for (const x of list) if (x && x.i > mx) mx = x.i;
     if (seen[p.peer] == null) { seen[p.peer] = mx; continue; }
+    const was = seen[p.peer]; seen[p.peer] = mx; /* mark as handled BEFORE acting: acting publishes, which can run this check again */
     for (const x of list) {
-      if (!x || !(x.i > seen[p.peer])) continue;
+      if (!x || !(x.i > was)) continue;
       const from = clean(p.presence.n);
       if (x.k === 'boomhit') { if (phase === 'play' && p.presence.h === holeIdx) { drag = null; boomAt(players[0], +x.x || 0, +x.y || 0, from); } continue; }
       if (x.k === 'bump') { if (x.to === myPeer) bumpMe(x, from); continue; }
@@ -1839,7 +1842,6 @@ function netTick() {
       if (x.to === myPeer || x.to === '*') applyPrank(players[0], x.k, from, p.peer);
       else { const tp = party.find(q => q.peer === x.to); if (tp && phase === 'play') toast(ITEMS[x.k].e + ' ' + from + ' pranked ' + clean(tp.presence.n)); }
     }
-    seen[p.peer] = mx;
   }
   for (const p of party) {
     if (p.isMe && p.sameTab) continue;
