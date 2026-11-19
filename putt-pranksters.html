@@ -934,7 +934,7 @@ let mode = 'local', phase = 'home', holeIdx = 0, cur = null, players = [], turn 
 let T = 0, shake = 0, drag = null, timeLeft = HOLE_TIME, parts = [], scale = 1;
 let myName = 'Player', myColor = 0, myAv = 0, localCount = 2, em = null, emSeq = 0, seenEm = {};
 // online
-let lastPubT = 0, camWho = null;
+let lastPubT = 0, camWho = null, camSubj = {id:null, x:null, y:null, hold:0};
 let roomP = null, nr = null, myPeer = null, party = [], amHost = false, G = null, gSeq = 0, phaseAt = 0;
 let joinedAt = 0, t0 = 0, pk = [], pkSeq = 0, seen = {}, lastPub = '', doneHole = -1, doneSeq = 0, ghosts = {}, code = '';
 let camMode = 0, kz = 1, fdt = .016;
@@ -1434,7 +1434,7 @@ function applyPrank(p, k, from, by) {
 function startHole(i) {
   holeIdx = i; cur = build(i); phase = 'play'; lock = false; drag = null; timeLeft = HOLE_TIME + 30 * (cur.d.par - 2); parts = []; ghosts = {};
   tracks = []; camAim = null;
-  doneHole = -1; bumpCd = {}; portal = null; decoys = []; rings = []; intro = INTRO; FLY.on = false; camT = null; zoomT = 0; sinks.length = 0;
+  doneHole = -1; bumpCd = {}; portal = null; decoys = []; rings = []; intro = INTRO; FLY.on = false; camT = null; camSubj = {id:null, x:null, y:null, hold:0}; zoomT = 0; sinks.length = 0;
   for (const p of players) {
     p.imp = null; p.warp = null; p.drown = null; p.cup = null; p.ux = p.uy = 0; p.air = 0; p.vz = 0; p.gr = undefined; p.kimQ = null; p.hb = 0; if (i === 0) p.st = {sab:0, col:0, ace:0, bmp:0};
     p.x = cur.tee[0]; p.y = cur.tee[1]; p.vx = p.vy = p.ux = p.uy = 0; p.moving = false; p.shot = false; p.strokes = 0; p.done = false;
@@ -2723,7 +2723,11 @@ function buildScene() {
   }
   for (const k in balls) delete balls[k];
   if (dyn.deck) { const [dx0, dx1, dz0, dz1] = dyn.deck, bx = new THREE.Box3(), cv3 = new THREE.Vector3(); g.updateMatrixWorld(true); // anything that would hang off the deck into the sky goes
-    for (const o of g.children.slice()) { if (o.userData.keep || o.isInstancedMesh || o === dyn.flag) continue; bx.setFromObject(o); if (bx.isEmpty()) continue; bx.getCenter(cv3);
+    const live = new Set(), walk = (v, dep) => { if (!v || dep > 4) return; if (v.isObject3D) { live.add(v); return; } if (Array.isArray(v)) v.forEach(x => walk(x, dep + 1)); else if (typeof v === 'object') for (const k in v) walk(v[k], dep + 1); };
+    if (dyn.boats) { dyn.boats.forEach(o => g.remove(o)); dyn.boats = null; } // no sea under a floating deck
+    walk(dyn, 0); // anything the game moves or shows later (gates, the owl's light, the mole, the aim arrow, markers) is never scenery, wherever it starts
+    const isLive = o => { let hit = false; o.traverse(q => { if (live.has(q)) hit = true; }); return hit; };
+    for (const o of g.children.slice()) { if (o.userData.keep || o.isInstancedMesh || o === dyn.flag || isLive(o) || (o.position.x === 0 && o.position.z === 0)) continue; bx.setFromObject(o); if (bx.isEmpty()) continue; bx.getCenter(cv3);
       if (cv3.x < dx0 - 4 || cv3.x > dx1 + 4 || cv3.z < dz0 - 4 || cv3.z > dz1 + 4 || bx.min.y < -60 || bx.max.y > 260) g.remove(o); } }
   scene.add(g);
 }
@@ -2918,8 +2922,15 @@ function draw() {
   // camera sits behind and above the ball, looking up the course
   let bx = p ? p.x : c.tee[0], by = p ? p.y : c.tee[1];
   if (p && p.done && sinks.length) { bx = c.hole[0]; by = c.hole[1] + 30; }
-  let watchRoll = null; // online: follow whoever is shooting
-  if (mode === 'online' && phase === 'play' && G && G.turn && G.turn !== myPeer && ghosts[G.turn] && !(sinks.length && performance.now() - turnAt < 1200)) { bx = ghosts[G.turn].x; by = ghosts[G.turn].y; watchRoll = !!ghosts[G.turn].mv; }
+  let watchRoll = null; // online: the camera stays on the ball that was just played until it stops and the turn has passed, then moves to the next shooter
+  if (mode === 'online' && phase === 'play' && G && G.turn) {
+    const moving = id => id === myPeer ? !!(p.moving || p.drown || p.warp || p.cup) : !!(ghosts[id] && ghosts[id].mv);
+    if (!camSubj.id) camSubj.id = G.turn;
+    if (camSubj.id !== G.turn) { if (!moving(camSubj.id)) { camSubj.hold = camSubj.hold || performance.now(); if (performance.now() - camSubj.hold > 450) { camSubj.id = G.turn; camSubj.hold = 0; camAim = null; } } else camSubj.hold = 0; }
+    const id = camSubj.id;
+    if (id !== myPeer) { const gq = ghosts[id]; if (gq) { camSubj.x = gq.x; camSubj.y = gq.y; } // a ball that has just dropped in the cup is gone from the course: hold on its last spot
+      if (camSubj.x != null) { bx = camSubj.x; by = camSubj.y; watchRoll = moving(id); } }
+  }
   const fe = 0; // the hole intro is its own flyover now, see flyPose
   bx += (c.hole[0] - bx) * fe; by += (c.hole[1] + 30 - by) * fe;
   const hf = 2 * Math.atan(Math.tan(cam.fov * Math.PI / 360) * cam.aspect);
@@ -2929,7 +2940,7 @@ function draw() {
   let want, tx, tz, fX = 0, fZ = -1;
   if (camMode === 1 || fe > 0 || !p) { want = fit; tx = ccx; tz = dyn.fitZ; }       // whole course from above
   else {
-    if (watchRoll != null && camWho !== G.turn) { camWho = G.turn; camAim = null; } else if (watchRoll == null && camWho) { camWho = null; camAim = null; }
+    if (watchRoll != null && camWho !== camSubj.id) { camWho = camSubj.id; camAim = null; } else if (watchRoll == null && camWho) { camWho = null; camAim = null; }
     const lp = rolling && camAim ? c.hole : lookPoint(c, bx, by), hx = lp[0] - bx, hz = lp[1] - by, hd = Math.hypot(hx, hz) || 1;
     if (!camAim || (!rolling && hd > 6)) camAim = {x:hx / hd, z:hz / hd, d:hd};      // ball at rest: swing round to face the cup
     fX = camAim.x; fZ = camAim.z;
