@@ -274,7 +274,7 @@ tr.me td{color:var(--sun)}
   <section id="who" class="screen pad">
     <div class="brand">
       <h1>Putt <span>Pranksters</span></h1>
-      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 19 · camera follow fix</div>
+      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 20 · camera hand-off fix</div>
       <p>Six maps of six holes each with dirty tricks, with Kim heckling from the sidelines, ending at his car service in St. Martin. Pick your putter first.</p>
     </div>
     <div class="card">
@@ -2863,7 +2863,7 @@ function draw() {
   if (mode === 'local') players.forEach((q, i) => { if (i !== turn && !q.done) putBall('L' + i, IX(q), IY(q), q.c, .65, q.av, players.length > 1 ? q.name : null, q.em, false); });
   else if (phase === 'play') {
     for (const q of party) {
-      if ((q.isMe && q.sameTab) || q.presence.h !== holeIdx || (q.presence.dh === holeIdx && q.presence.ds === gSeq)) continue;
+      if ((q.isMe && q.sameTab) || q.presence.h !== holeIdx || (q.presence.dh === holeIdx && q.presence.ds === gSeq)) { const g0 = ghosts[q.peer]; if (g0) { g0.mv = false; g0.sb = null; } continue; } /* a ball in the cup is no longer rolling */
       const tx = +q.presence.x || c.tee[0], ty = +q.presence.y || c.tee[1];
       const gh = ghosts[q.peer] || (ghosts[q.peer] = {x:tx, y:ty, px:tx, py:ty, rt:performance.now()});
       if (tx !== gh.px || ty !== gh.py) { gh.px = tx; gh.py = ty; gh.rt = performance.now(); gh.nw = 1; }
@@ -2927,7 +2927,9 @@ function draw() {
   if (mode === 'online' && phase === 'play' && G && G.turn) {
     const moving = id => id === myPeer ? !!(p.moving || p.drown || p.warp || p.cup) : !!(ghosts[id] && ghosts[id].mv);
     if (!camSubj.id) camSubj.id = G.turn;
-    if (camSubj.id !== G.turn) { if (!moving(camSubj.id)) { camSubj.hold = camSubj.hold || performance.now(); if (performance.now() - camSubj.hold > 450) { camSubj.id = G.turn; camSubj.hold = 0; camAim = null; } } else camSubj.hold = 0; }
+    if (camSubj.id !== G.turn) { const now2 = performance.now(); if (camSubj.tt !== G.tn + '|' + G.turn) { camSubj.tt = G.tn + '|' + G.turn; camSubj.t0 = now2; } /* the turn has passed: the host only passes it once the last ball has stopped, so wait a moment at most */
+      if (!moving(camSubj.id)) camSubj.hold = camSubj.hold || now2; else camSubj.hold = 0;
+      if ((camSubj.hold && now2 - camSubj.hold > 450) || now2 - camSubj.t0 > (G.turn === myPeer ? 900 : 1400) || (G.turn === myPeer && drag)) { camSubj.id = G.turn; camSubj.hold = 0; camAim = null; } }
     const id = camSubj.id;
     if (id !== myPeer) { const gq = ghosts[id]; if (gq) { camSubj.x = gq.x; camSubj.y = gq.y; } // a ball that has just dropped in the cup is gone from the course: hold on its last spot
       if (camSubj.x != null) { bx = camSubj.x; by = camSubj.y; watchRoll = moving(id); } }
