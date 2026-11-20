@@ -274,7 +274,7 @@ tr.me td{color:var(--sun)}
   <section id="who" class="screen pad">
     <div class="brand">
       <h1>Putt <span>Pranksters</span></h1>
-      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 23 · shield until your turn</div>
+      <div style="font-size:11px;opacity:.55;margin-top:-4px">build 24 · smoother multiplayer</div>
       <p>Six maps of six holes each with dirty tricks, with Kim heckling from the sidelines, ending at his car service in St. Martin. Pick your putter first.</p>
     </div>
     <div class="card">
@@ -1743,7 +1743,7 @@ function leaveParty() {
 }
 function pres() {
   const p = players[0];
-  return {n:p.name, c:p.c, av:p.av, em, st:p.st, t0, h:holeIdx, x:Math.round(p.x), y:Math.round(p.y), vx:Math.round(p.vx || 0), vy:Math.round(p.vy || 0), mv:(p.moving || p.drown || p.warp || p.cup) ? 1 : 0, cs:p.strokes, s:p.scores.slice(0, N),
+  return {n:p.name, c:p.c, av:p.av, em, st:p.st, t0, h:holeIdx, x:Math.round(p.x), y:Math.round(p.y), vx:Math.round(p.vx || 0), vy:Math.round(p.vy || 0), mv:(p.moving || p.drown || p.warp || p.cup) ? 1 : 0, tm:p.moving ? Date.now() : 0, cs:p.strokes, s:p.scores.slice(0, N),
     dh:doneHole, ds:doneSeq, pk, ch, sh:p.fx.shield > 0 && !p.done ? 1 : 0, g:amHost && G ? G : null};
 }
 function pub() {
@@ -1818,7 +1818,7 @@ function netTick0() {
       // turns: one shooter at a time. Move on once their shot has come to rest, they hole out, leave, or sit idle too long
       if (HT.tn !== G.tn) HT = {tn:G.tn, bs:(turnInfo(G.turn) || {cs:0}).cs, ts:now, rest:0};
       const ti = G.turn ? turnInfo(G.turn) : null; let adv = !ti || ti.done;
-      if (ti && !adv) { if (ti.cs > HT.bs && !ti.mv) { HT.rest = HT.rest || now; if (now - HT.rest > 800) adv = true; } else HT.rest = 0;
+      if (ti && !adv) { if (ti.cs > HT.bs && !ti.mv) { HT.rest = HT.rest || now; if (now - HT.rest > 500) adv = true; } else HT.rest = 0;
         if (now - HT.ts > (ti.cs > HT.bs ? 70 : TURN_TIME + 3) * 1000) adv = true; }
       if (adv) { const nx = nextShooter(G.turn);
         if (nx && nx !== G.turn) { G.turn = nx; G.tn = (G.tn | 0) + 1; onTurn(); pub(); }
@@ -2905,13 +2905,19 @@ function draw() {
       if ((q.isMe && q.sameTab) || q.presence.h !== holeIdx || (q.presence.dh === holeIdx && q.presence.ds === gSeq)) { const g0 = ghosts[q.peer]; if (g0) { g0.mv = false; g0.sb = null; } continue; } /* a ball in the cup is no longer rolling */
       const tx = +q.presence.x || c.tee[0], ty = +q.presence.y || c.tee[1];
       const gh = ghosts[q.peer] || (ghosts[q.peer] = {x:tx, y:ty, px:tx, py:ty, rt:performance.now()});
-      if (tx !== gh.px || ty !== gh.py) { gh.px = tx; gh.py = ty; gh.rt = performance.now(); gh.nw = 1; }
-      const mvNow = !!q.presence.mv, fresh = gh.nw || gh.lastMv !== mvNow; gh.lastMv = mvNow; gh.nw = 0;
-      if (mvNow && fresh) { const sb = gh.sb || (gh.sb = {x:tx, y:ty, vx:0, vy:0, ux:0, uy:0, air:0, vz:0, fx:{}, aGhost:false, aMagnet:false, items:[]});
-        sb.x += (tx - sb.x) * .6; sb.y += (ty - sb.y) * .6; sb.vx = sb.ux = +q.presence.vx || 0; sb.vy = sb.uy = +q.presence.vy || 0; } // nudge the local copy toward what the shooter reports
-      if (!mvNow) gh.sb = null;
-      const ex = gh.sb ? gh.sb.x : tx, ey = gh.sb ? gh.sb.y : ty;
-      gh.mv = mvNow; gh.x += (ex - gh.x) * .35; gh.y += (ey - gh.y) * .35;
+      if (tx !== gh.px || ty !== gh.py) { gh.px = tx; gh.py = ty; gh.rt = performance.now(); }
+      const mvNow = !!q.presence.mv, tm = +q.presence.tm || 0, nowR = performance.now(), fdt = Math.min(.1, (nowR - (gh.lt || nowR)) / 1000); gh.lt = nowR;
+      if (mvNow && tm && tm !== gh.tm) { // a fresh report of a rolling ball. It is already a little out of date, so roll it forward by however long it took to get here
+        gh.tm = tm; const d = Date.now() - tm; gh.dmin = gh.dmin == null ? d : Math.min(d, gh.dmin + 3); // the quickest delivery seen = the two phones' clock difference
+        const L = Math.max(0, Math.min(.6, (d - gh.dmin) / 1000 + .07));
+        const est = {x:tx, y:ty, vx:+q.presence.vx || 0, vy:+q.presence.vy || 0, air:0, vz:0, fx:{}, aGhost:false, aMagnet:false, items:[]}; est.ux = est.vx; est.uy = est.vy;
+        for (let tt = 0; tt < L && (est.vx || est.vy); tt += STEP) if (stepBall(est, STEP, true)) break;
+        if (gh.sb && gh.drawn) { gh.ox = gh.drawn[0] - est.x; gh.oy = gh.drawn[1] - est.y; if (Math.hypot(gh.ox, gh.oy) > 60) gh.ox = gh.oy = 0; } else { gh.ox = gh.x - est.x; gh.oy = gh.y - est.y; if (Math.hypot(gh.ox, gh.oy) > 60) gh.ox = gh.oy = 0; }
+        gh.sb = est; } // swap in the corrected roll, and melt the difference away over a few frames instead of jumping back
+      if (!mvNow) { gh.sb = null; gh.tm = 0; }
+      if (gh.sb) { const k = Math.exp(-fdt / .12); gh.ox = (gh.ox || 0) * k; gh.oy = (gh.oy || 0) * k; gh.x = gh.sb.x + gh.ox; gh.y = gh.sb.y + gh.oy; gh.drawn = [gh.x, gh.y]; }
+      else { gh.x += (tx - gh.x) * .35; gh.y += (ty - gh.y) * .35; gh.drawn = null; gh.ox = gh.oy = 0; }
+      gh.mv = mvNow;
       putBall(q.peer, gh.x, gh.y, (q.presence.c | 0) % 8, .75, q.presence.av | 0, clean(q.presence.n), gh.em, false);
     }
   }
